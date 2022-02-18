@@ -6,7 +6,7 @@ See also: https://zenn.dev/habara_k/scraps/95277a1764d6d8
 
 # Prerequisite
 
-- [cargo-auto-bundle](https://github.com/shino16/cargo-auto-bundle)
+- [procon-bundler](https://github.com/ngtkana/procon-bundler)
 
 # Usage
 
@@ -15,8 +15,7 @@ See also: https://zenn.dev/habara_k/scraps/95277a1764d6d8
 3. Save the library-expanded code to the clipboard with the following command.
 
 ```sh
-$ cargo auto-bundle --entry-point src/bin/a.rs --crate external/ac-library-rs > tmp.rs && \
-cargo auto-bundle --entry-point tmp.rs --crate external/my-library-rs | pbcopy && rm tmp.rs
+$ python3 expander.py --crates external/ac-library-rs external/my-library-rs --tgt src/bin/a.rs
 ```
 
 => Submit your code to AtCoder.

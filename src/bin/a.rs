@@ -6,10 +6,10 @@ use superslice::Ext;
 use num::complex::Complex;
 use ordered_float::OrderedFloat;
 
-//use ac_library_rs::modint::*;
-//use my_library_rs::*;
+use ac_library_rs::*;
+use my_library_rs::*;
 
-#[fastout]
+//#[fastout]
 fn main() {
     input! {
     }

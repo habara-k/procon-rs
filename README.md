@@ -15,7 +15,8 @@ See also: https://zenn.dev/habara_k/scraps/95277a1764d6d8
 3. Save the library-expanded code to the clipboard with the following command.
 
 ```sh
-cargo auto-bundle --entry-point src/bin/a.rs --crate external/my-library-rs > tmp.rs && cargo auto-bundle --entry-point tmp.rs --crate external/ac-library-rs | pbcopy
+$ cargo auto-bundle --entry-point src/bin/a.rs --crate external/ac-library-rs > tmp.rs && \
+cargo auto-bundle --entry-point tmp.rs --crate external/my-library-rs | pbcopy && rm tmp.rs
 ```
 
 => Submit your code to AtCoder.

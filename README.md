@@ -15,7 +15,7 @@ See also: https://zenn.dev/habara_k/scraps/95277a1764d6d8
 3. Save the library-expanded code to the clipboard with the following command.
 
 ```sh
-$ python3 expander.py --crates external/ac-library-rs external/my-library-rs --tgt src/bin/a.rs
+$ python3 expander.py --tgt src/bin/a.rs | pbcopy                              
 ```
 
 => Submit your code to AtCoder.

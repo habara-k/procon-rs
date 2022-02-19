@@ -1,7 +1,8 @@
 #![allow(unused_imports)]
 use itertools::Itertools;
 use proconio::{input, fastout, marker::{Usize1, Chars}};
-use std::collections::BTreeMap;
+use std::collections::{BinaryHeap, BTreeMap};
+use std::cmp::Reverse;
 use superslice::Ext;
 use num::complex::Complex;
 use ordered_float::OrderedFloat;
@@ -9,7 +10,7 @@ use ordered_float::OrderedFloat;
 use ac_library_rs::*;
 use my_library_rs::*;
 
-//#[fastout]
+#[fastout]
 fn main() {
     input! {
     }

@@ -10,7 +10,7 @@ ac-library-rs = { path = "external/ac-library-rs" }
 my-library-rs = { path = "external/my-library-rs" }
 proconio = { version = "=0.3.6", features = ["derive"] }
 itertools = "=0.9.0"
-#nalgebra = "=0.20.0"
+nalgebra = "=0.20.0"
 superslice = "=1.0.0"
 num = "=0.4"
 ordered-float = "=1.0.2"

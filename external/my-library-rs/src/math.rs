@@ -36,3 +36,33 @@ where T: Copy + From<usize> + Mul<Output = T> + Div<Output = T>
     }
 }
 
+
+
+fn bitwise_transform<T>(a: &mut Vec<T>, f: fn(*mut T, *mut T))
+{
+    let n = a.len();
+    assert_eq!(n & (n-1), 0);
+
+    let ptr = a.as_mut_ptr();
+    for block in (0..).map(|k| 1<<k).take_while(|&b| b < n) {
+        for l in (0..n).step_by(block << 1) {
+            for i in l..l+block {
+                unsafe {
+                    f(ptr.add(i), ptr.add(i + block));
+                }
+            }
+        }
+    }
+}
+
+use std::ops::AddAssign;
+pub fn subset_zeta_transform<T>(a: &mut Vec<T>)
+    where T: Copy + AddAssign
+{
+    bitwise_transform(a, |x: *mut T, y: *mut T| {
+        unsafe {
+            *y += *x;
+        }
+    });
+}
+

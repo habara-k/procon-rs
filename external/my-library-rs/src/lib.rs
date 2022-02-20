@@ -3,4 +3,4 @@ pub mod math;
 pub mod macros;
 
 pub use graph::{Edge, dijkstra};
-pub use math::Combination;
+pub use math::{Combination, subset_zeta_transform};

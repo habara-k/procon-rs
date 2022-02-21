@@ -1,9 +1,11 @@
 use std::convert::From;
 use std::ops::{AddAssign, Div, Mul};
 
+/// 二項係数を計算する.
+/// NOTE: ACLibrary のModInt が渡されることを想定している.
 pub struct Combination<T> {
-    fact: Vec<T>,
-    ifact: Vec<T>,
+    fac: Vec<T>,
+    inv: Vec<T>,
 }
 
 impl<T> Combination<T>
@@ -11,29 +13,27 @@ where
     T: Copy + From<usize> + Mul<Output = T> + Div<Output = T>,
 {
     pub fn new(n: usize) -> Self {
-        let (mut fact, mut ifact) = (vec![], vec![]);
-        fact.reserve(n + 1);
-        ifact.reserve(n + 1);
+        let (mut fac, mut inv) = (Vec::with_capacity(n + 1), Vec::with_capacity(n + 1));
 
-        fact.push(1.into());
+        fac.push(1.into());
         for i in 0..n {
-            fact.push(fact[i] * (i + 1).into());
+            fac.push(fac[i] * (i + 1).into());
         }
 
-        ifact.push(T::from(1) / fact[n]);
+        inv.push(T::from(1) / fac[n]);
         for i in 0..n {
-            ifact.push(ifact[i] * (n - i).into());
+            inv.push(inv[i] * (n - i).into());
         }
-        ifact.reverse();
+        inv.reverse();
 
-        Self { fact, ifact }
+        Self { fac, inv }
     }
 
     pub fn c(&self, n: usize, r: usize) -> T {
         if n < r {
             return 0.into();
         }
-        self.fact[n] * self.ifact[r] * self.ifact[n - r]
+        self.fac[n] * self.inv[r] * self.inv[n - r]
     }
 }
 

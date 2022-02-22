@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use fixedbitset::FixedBitSet;
 use itertools::Itertools;
 use num::complex::Complex;
 use num::integer::gcd;

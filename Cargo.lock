@@ -23,6 +23,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
+name = "fixedbitset"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
+
+[[package]]
 name = "getrandom"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -58,6 +64,7 @@ checksum = "1bf2e165bb3457c8e098ea76f3e3bc9db55f87aa90d52d0e6be741470916aaa4"
 name = "my-library-rs"
 version = "0.1.0"
 dependencies = [
+ "fixedbitset",
  "lazy_static",
  "num",
  "rand",
@@ -168,6 +175,7 @@ name = "procon"
 version = "0.1.0"
 dependencies = [
  "ac-library-rs",
+ "fixedbitset",
  "itertools",
  "my-library-rs",
  "num",

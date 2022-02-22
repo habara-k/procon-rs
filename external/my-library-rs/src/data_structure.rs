@@ -143,7 +143,7 @@ impl<S> RBTreeNode<S> {
                 // Change color:
                 //             (BLACK,h+1)                   (RED,h+1)
                 //             /    \                        /       \
-                //         (RED,h)  r(RED,h+1)   =>      (BLACK,h+1)  r(BLACK,h+1)
+                //         (RED,h)  r(RED,h)     =>      (BLACK,h+1)  r(BLACK,h+1)
                 //             \                          /     \
                 //   c(RED,h)   lr(BLACK,h)           c(RED,h)   lr(BLACK,h)
                 Self::connect(

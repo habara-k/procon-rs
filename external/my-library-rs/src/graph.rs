@@ -8,7 +8,7 @@ pub struct Edge<T> {
     pub cost: T,
 }
 
-pub fn dijkstra<T>(graph: &Vec<Vec<Edge<T>>>, s: usize) -> Vec<T>
+pub fn dijkstra<T>(graph: &[Vec<Edge<T>>], s: usize) -> Vec<T>
 where
     T: Copy + Bounded + Zero + Ord,
 {

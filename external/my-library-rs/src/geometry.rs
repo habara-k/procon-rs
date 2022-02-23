@@ -27,12 +27,12 @@ where
 /// let ps = vec![Complex::new(0, 0), Complex::new(10, 0), Complex::new(0, 10), Complex::new(1, 1)];
 /// assert_eq!(convex_hull(&ps), vec![Complex::new(0, 0), Complex::new(10, 0), Complex::new(0, 10)]);
 /// ```
-pub fn convex_hull<T>(ps: &Vec<Complex<T>>) -> Vec<Complex<T>>
+pub fn convex_hull<T>(ps: &[Complex<T>]) -> Vec<Complex<T>>
 where
     T: Copy + Num + Ord,
 {
     if ps.len() <= 1 {
-        return ps.clone();
+        return ps.to_vec();
     }
 
     let mut order: Vec<usize> = (0..ps.len()).collect();
@@ -78,7 +78,7 @@ where
 /// let ps = vec![Complex::new(0, 0), Complex::new(0, 1), Complex::new(1, 0)];
 /// assert_eq!(area_x2(&ps), -1);
 /// ```
-pub fn area_x2<T>(ps: &Vec<Complex<T>>) -> T
+pub fn area_x2<T>(ps: &[Complex<T>]) -> T
 where
     T: Copy + Num + Sum,
 {

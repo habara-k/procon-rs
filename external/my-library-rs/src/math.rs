@@ -15,14 +15,14 @@ where
     pub fn new(n: usize) -> Self {
         let (mut fac, mut inv) = (Vec::with_capacity(n + 1), Vec::with_capacity(n + 1));
 
-        fac.push(1.into());
+        fac.push(T::from(1));
         for i in 0..n {
-            fac.push(fac[i] * (i + 1).into());
+            fac.push(fac[i] * T::from(i + 1));
         }
 
         inv.push(T::from(1) / fac[n]);
         for i in 0..n {
-            inv.push(inv[i] * (n - i).into());
+            inv.push(inv[i] * T::from(n - i));
         }
         inv.reverse();
 
@@ -31,13 +31,13 @@ where
 
     pub fn c(&self, n: usize, r: usize) -> T {
         if n < r {
-            return 0.into();
+            return T::from(0);
         }
         self.fac[n] * self.inv[r] * self.inv[n - r]
     }
 }
 
-fn bitwise_transform<T>(a: &mut Vec<T>, f: fn(*mut T, *mut T)) {
+fn bitwise_transform<T>(a: &mut [T], f: fn(*mut T, *mut T)) {
     let n = a.len();
     assert_eq!(n & (n - 1), 0);
 
@@ -71,7 +71,7 @@ fn bitwise_transform<T>(a: &mut Vec<T>, f: fn(*mut T, *mut T)) {
 /// assert_eq!(a[0b110], 110);
 /// assert_eq!(a[0b111], 111);
 /// ```
-pub fn subset_zeta_transform<T>(a: &mut Vec<T>)
+pub fn subset_zeta_transform<T>(a: &mut [T])
 where
     T: Copy + AddAssign,
 {

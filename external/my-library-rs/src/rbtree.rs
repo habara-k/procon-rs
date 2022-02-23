@@ -12,7 +12,6 @@ pub trait Data {
 }
 
 /// 赤黒木を実装するクラス
-#[derive(Clone)]
 struct Node<M>
 where
     M: Data,
@@ -238,19 +237,17 @@ where
 /// ```
 /// use my_library_rs::*;
 ///
-/// let mut v: RBTree<u32> = vec![30, 10, 40, 70, 50].into();
-///
-/// v.insert(2, 20);  // [30, 10, 20, 40, 70, 50]
-/// v.insert(6, 60);  // [30, 10, 20, 40, 70, 50, 60]
-/// assert_eq!(v.remove(3), 40);  // [30, 10, 20, 70, 50, 60]
-/// assert_eq!(v.remove(4), 50);  // [30, 10, 20, 70, 60]
+/// let mut v: RBTree<u32> = vec![60, 20, 40, 50].into();
+/// v.insert(0, 10);  // [10, 60, 20, 40, 50]
+/// v.insert(3, 30);  // [10, 60, 20, 30, 40, 50]
+/// v.remove(1);      // [10, 20, 30, 40, 50]
 ///
 /// assert_eq!(v.len(), 5);
-/// assert_eq!(v.get(0), 30);
-/// assert_eq!(v.get(1), 10);
-/// assert_eq!(v.get(2), 20);
-/// assert_eq!(v.get(3), 70);
-/// assert_eq!(v.get(4), 60);
+/// assert_eq!(v.get(0), 10);
+/// assert_eq!(v.get(1), 20);
+/// assert_eq!(v.get(2), 30);
+/// assert_eq!(v.get(3), 40);
+/// assert_eq!(v.get(4), 50);
 /// ```
 pub struct RBTree<T>
 where
@@ -279,30 +276,30 @@ where
         Self { root: None }
     }
     pub fn len(&self) -> usize {
-        Node::<OnlyLeaf<T>>::len(&self.root)
+        <Node<OnlyLeaf<T>>>::len(&self.root)
     }
     pub fn insert(&mut self, k: usize, data: T) {
         assert!(k <= self.len());
         let root = mem::replace(&mut self.root, None);
-        let (a, b) = Node::<OnlyLeaf<T>>::split(root, k);
-        self.root = Node::<OnlyLeaf<T>>::merge(
-            Node::<OnlyLeaf<T>>::merge(a, Some(Node::<OnlyLeaf<T>>::new_leaf(data))),
+        let (a, b) = <Node<OnlyLeaf<T>>>::split(root, k);
+        self.root = <Node<OnlyLeaf<T>>>::merge(
+            <Node<OnlyLeaf<T>>>::merge(a, Some(<Node<OnlyLeaf<T>>>::new_leaf(data))),
             b,
         );
     }
     pub fn remove(&mut self, k: usize) -> T {
-        assert!(k <= self.len());
+        assert!(k < self.len());
         let root = mem::replace(&mut self.root, None);
-        let (a, b, c) = Node::<OnlyLeaf<T>>::split_range(root, k, k + 1);
-        self.root = Node::<OnlyLeaf<T>>::merge(a, c);
+        let (a, b, c) = <Node<OnlyLeaf<T>>>::split_range(root, k, k + 1);
+        self.root = <Node<OnlyLeaf<T>>>::merge(a, c);
         b.unwrap().data
     }
     pub fn get(&mut self, k: usize) -> T {
         assert!(k <= self.len());
         let root = mem::replace(&mut self.root, None);
-        let (a, b, c) = Node::<OnlyLeaf<T>>::split_range(root, k, k + 1);
+        let (a, b, c) = <Node<OnlyLeaf<T>>>::split_range(root, k, k + 1);
         let x = b.as_ref().unwrap().as_ref().data.clone();
-        self.root = Node::<OnlyLeaf<T>>::merge(Node::<OnlyLeaf<T>>::merge(a, b), c);
+        self.root = <Node<OnlyLeaf<T>>>::merge(<Node<OnlyLeaf<T>>>::merge(a, b), c);
         x
     }
 }
@@ -313,7 +310,7 @@ where
 {
     fn from(v: Vec<T>) -> Self {
         Self {
-            root: Node::<OnlyLeaf<T>>::build(&v, 0, v.len()),
+            root: <Node<OnlyLeaf<T>>>::build(&v, 0, v.len()),
         }
     }
 }
@@ -382,22 +379,22 @@ impl<M> RBSegtree<M>
         Self { root: None }
     }
     pub fn len(&self) -> usize {
-        Node::<MonoidData<M>>::len(&self.root)
+        <Node<MonoidData<M>>>::len(&self.root)
     }
     pub fn insert(&mut self, k: usize, data: M::S) {
         assert!(k <= self.len());
         let root = mem::replace(&mut self.root, None);
-        let (a, b) = Node::<MonoidData<M>>::split(root, k);
-        self.root = Node::<MonoidData<M>>::merge(
-            Node::<MonoidData<M>>::merge(a, Some(Node::<MonoidData<M>>::new_leaf(data))),
+        let (a, b) = <Node<MonoidData<M>>>::split(root, k);
+        self.root = <Node<MonoidData<M>>>::merge(
+            <Node<MonoidData<M>>>::merge(a, Some(<Node<MonoidData<M>>>::new_leaf(data))),
             b,
         );
     }
     pub fn remove(&mut self, k: usize) -> M::S {
-        assert!(k <= self.len());
+        assert!(k < self.len());
         let root = mem::replace(&mut self.root, None);
-        let (a, b, c) = Node::<MonoidData<M>>::split_range(root, k, k + 1);
-        self.root = Node::<MonoidData<M>>::merge(a, c);
+        let (a, b, c) = <Node<MonoidData<M>>>::split_range(root, k, k + 1);
+        self.root = <Node<MonoidData<M>>>::merge(a, c);
         b.unwrap().data
     }
     pub fn get(&mut self, k: usize) -> M::S {
@@ -408,9 +405,9 @@ impl<M> RBSegtree<M>
     pub fn prod(&mut self, l: usize, r: usize) -> M::S {
         assert!(l <= r && r <= self.len());
         let root = mem::replace(&mut self.root, None);
-        let (a, b, c) = Node::<MonoidData<M>>::split_range(root, l, r);
+        let (a, b, c) = <Node<MonoidData<M>>>::split_range(root, l, r);
         let x = b.as_ref().unwrap().as_ref().data.clone();
-        self.root = Node::<MonoidData<M>>::merge(Node::<MonoidData<M>>::merge(a, b), c);
+        self.root = <Node<MonoidData<M>>>::merge(<Node<MonoidData<M>>>::merge(a, b), c);
         x
     }
 }
@@ -421,7 +418,7 @@ impl<M> From<Vec<M::S>> for RBSegtree<M>
 {
     fn from(v: Vec<M::S>) -> Self {
         Self {
-            root: Node::<MonoidData<M>>::build(&v, 0, v.len()),
+            root: <Node<MonoidData<M>>>::build(&v, 0, v.len()),
         }
     }
 }

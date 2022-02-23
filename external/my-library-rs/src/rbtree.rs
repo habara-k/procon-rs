@@ -262,10 +262,26 @@ impl<T: Clone> NodeData for RightData<T> {
     fn on_detach(_data: &Self::T, _l: &mut Self::T, _r: &mut Self::T) {}
 }
 
-impl<T: Clone> RBTree<T> {
-    pub fn new() -> Self {
+/// Constructors
+impl<T: Clone> Default for RBTree<T> {
+    fn default() -> Self {
         Self { root: None }
     }
+}
+impl<T: Clone + Default> RBTree<T> {
+    pub fn new(n: usize) -> RBTree<T> {
+        vec![T::default(); n].into()
+    }
+}
+impl<T: Clone> From<Vec<T>> for RBTree<T> {
+    fn from(v: Vec<T>) -> Self {
+        Self {
+            root: Node::<RightData<T>>::build(&v, 0, v.len()),
+        }
+    }
+}
+
+impl<T: Clone> RBTree<T> {
     pub fn len(&self) -> usize {
         Node::<RightData<T>>::len(&self.root)
     }
@@ -317,14 +333,6 @@ impl<T: Clone + Ord> RBTree<T> {
     }
 }
 
-impl<T: Clone> From<Vec<T>> for RBTree<T> {
-    fn from(v: Vec<T>) -> Self {
-        Self {
-            root: Node::<RightData<T>>::build(&v, 0, v.len()),
-        }
-    }
-}
-
 /// モノイドが載る平衡二分木.
 /// 挿入, 削除, 区間取得を O(log n) で行う.
 ///
@@ -371,10 +379,26 @@ impl<M: Monoid> NodeData for MonoidData<M> {
     fn on_detach(_data: &Self::T, _l: &mut Self::T, _r: &mut Self::T) {}
 }
 
-impl<M: Monoid> RBSegtree<M> {
-    pub fn new() -> Self {
+/// Constructors
+impl<M: Monoid> Default for RBSegtree<M> {
+    fn default() -> Self {
         Self { root: None }
     }
+}
+impl<M: Monoid> RBSegtree<M> {
+    pub fn new(n: usize) -> RBSegtree<M> {
+        vec![M::identity(); n].into()
+    }
+}
+impl<M: Monoid> From<Vec<M::S>> for RBSegtree<M> {
+    fn from(v: Vec<M::S>) -> Self {
+        Self {
+            root: Node::<MonoidData<M>>::build(&v, 0, v.len()),
+        }
+    }
+}
+
+impl<M: Monoid> RBSegtree<M> {
     pub fn len(&self) -> usize {
         Node::<MonoidData<M>>::len(&self.root)
     }
@@ -412,14 +436,6 @@ impl<M: Monoid> RBSegtree<M> {
 
         self.root = Node::<MonoidData<M>>::merge(Node::<MonoidData<M>>::merge(a, b), c);
         x
-    }
-}
-
-impl<M: Monoid> From<Vec<M::S>> for RBSegtree<M> {
-    fn from(v: Vec<M::S>) -> Self {
-        Self {
-            root: Node::<MonoidData<M>>::build(&v, 0, v.len()),
-        }
     }
 }
 
@@ -511,10 +527,27 @@ impl<F: MapMonoid> NodeData for MapMonoidData<F> {
     }
 }
 
-impl<F: MapMonoid> RBLazySegtree<F> {
-    pub fn new() -> Self {
+/// Constructors
+impl<F: MapMonoid> Default for RBLazySegtree<F> {
+    fn default() -> Self {
         Self { root: None }
     }
+}
+impl<F: MapMonoid> RBLazySegtree<F> {
+    pub fn new(n: usize) -> RBLazySegtree<F> {
+        vec![F::identity_element(); n].into()
+    }
+}
+impl<F: MapMonoid> From<Vec<<F::M as Monoid>::S>> for RBLazySegtree<F> {
+    fn from(v: Vec<<F::M as Monoid>::S>) -> Self {
+        let v: Vec<_> = v.iter().map(|e| (e.clone(), F::identity_map())).collect();
+        Self {
+            root: Node::<MapMonoidData<F>>::build(&v, 0, v.len()),
+        }
+    }
+}
+
+impl<F: MapMonoid> RBLazySegtree<F> {
     pub fn len(&self) -> usize {
         Node::<MapMonoidData<F>>::len(&self.root)
     }
@@ -575,14 +608,5 @@ impl<F: MapMonoid> RBLazySegtree<F> {
         *lazy = F::composition(&f, lazy);
 
         self.root = Node::<MapMonoidData<F>>::merge(Node::<MapMonoidData<F>>::merge(a, b), c);
-    }
-}
-
-impl<F: MapMonoid> From<Vec<<F::M as Monoid>::S>> for RBLazySegtree<F> {
-    fn from(v: Vec<<F::M as Monoid>::S>) -> Self {
-        let v: Vec<_> = v.iter().map(|e| (e.clone(), F::identity_map())).collect();
-        Self {
-            root: Node::<MapMonoidData<F>>::build(&v, 0, v.len()),
-        }
     }
 }

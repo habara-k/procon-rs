@@ -274,3 +274,22 @@ pub trait LazyEval<F: MapMonoid>: Root<<F::M as Monoid>::S> {
     }
     fn apply(p: &mut Box<Self::Node>, f: F::F);
 }
+
+//pub trait Reversible<T: Clone>: Root<T> {
+//    fn reverse_range(&mut self, l: usize, r: usize) {
+//        assert!(l <= r && r <= self.len());
+//        if l == r {
+//            return;
+//        }
+//        let root = mem::replace(self.mut_root(), None);
+//        let (a, mut b, c) = <Self as Root<<F::M as Monoid>::S>>::Node::split_range(root, l, r);
+//
+//        Self::reverse(b.as_mut().unwrap());
+//
+//        *self.mut_root() = <Self as Root<<F::M as Monoid>::S>>::Node::merge(
+//            <Self as Root<<F::M as Monoid>::S>>::Node::merge(a, b),
+//            c,
+//        );
+//    }
+//    fn reverse(p: &mut Box<Self::Node>);
+//}

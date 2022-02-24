@@ -4,7 +4,7 @@ use std::mem;
 const RED: bool = false;
 const BLACK: bool = true;
 
-pub trait NodeElem {
+pub trait NodeAttribute {
     fn l(&self) -> &Option<Box<Self>>;
     fn r(&self) -> &Option<Box<Self>>;
     fn height(&self) -> usize;
@@ -19,7 +19,7 @@ pub trait NodeElem {
     }
 }
 
-pub trait NodeOps: NodeElem {
+pub trait NodeOps: NodeAttribute {
     fn connect(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self>;
     fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>);
     fn as_root(p: Box<Self>) -> Box<Self> {

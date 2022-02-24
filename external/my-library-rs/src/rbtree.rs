@@ -3,7 +3,7 @@ use crate::rbtree_traits::{
 };
 
 /// 列を管理する平衡二分木.
-/// 挿入, 削除, 取得, lower_bound を O(log n) で行う.
+/// 挿入, 削除, 取得, 分割, 統合, lower_bound を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -26,6 +26,24 @@ use crate::rbtree_traits::{
 /// assert_eq!(v.lower_bound(25), 2);
 /// assert_eq!(v.lower_bound(30), 2);
 /// assert_eq!(v.lower_bound(35), 4);
+///
+/// let mut t: RBTree<u32> = Default::default();
+/// v.split(2, &mut t);  // [10, 20], [30, 30, 40];
+/// assert_eq!(v.len(), 2);
+/// assert_eq!(v.get(0), 10);
+/// assert_eq!(v.get(1), 20);
+/// assert_eq!(t.len(), 3);
+/// assert_eq!(t.get(0), 30);
+/// assert_eq!(t.get(1), 30);
+/// assert_eq!(t.get(2), 40);
+///
+/// t.merge(&mut v);  // [30, 30, 40, 10, 20];
+/// assert_eq!(t.len(), 5);
+/// assert_eq!(t.get(0), 30);
+/// assert_eq!(t.get(1), 30);
+/// assert_eq!(t.get(2), 40);
+/// assert_eq!(t.get(3), 10);
+/// assert_eq!(t.get(4), 20);
 /// ```
 pub struct RBTree<T> {
     root: Option<Box<RightNode<T>>>,
@@ -114,6 +132,11 @@ impl<T: Clone> From<Vec<T>> for RBTree<T> {
         }
     }
 }
+impl<T: Clone> Default for RBTree<T> {
+    fn default() -> Self {
+        vec![].into()
+    }
+}
 impl<T: Clone + Ord> RBTree<T> {
     pub fn lower_bound(&self, val: T) -> usize {
         if self.root().is_none() {
@@ -138,7 +161,7 @@ impl<T: Clone + Ord> RBTree<T> {
 
 use crate::algebra::Monoid;
 /// モノイドが載る平衡二分木.
-/// 挿入, 削除, 区間取得を O(log n) で行う.
+/// 挿入, 削除, 区間取得, 分割, 統合を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -251,12 +274,17 @@ impl<M: Monoid> From<Vec<M::S>> for RBSegtree<M> {
         }
     }
 }
+impl<M: Monoid> Default for RBSegtree<M> {
+    fn default() -> Self {
+        vec![].into()
+    }
+}
 
 impl<M: Monoid> RangeFold<M> for RBSegtree<M> {}
 
 use crate::algebra::MapMonoid;
 /// 作用素モノイドが載る平衡二分木.
-/// 挿入, 削除, 区間取得, 区間作用 を O(log n) で行う.
+/// 挿入, 削除, 区間取得, 区間作用, 分割, 統合 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -407,6 +435,11 @@ impl<F: MapMonoid> From<Vec<<F::M as Monoid>::S>> for RBLazySegtree<F> {
         Self {
             root: <Self as Root<<F::M as Monoid>::S>>::Node::build(&v, 0, v.len()),
         }
+    }
+}
+impl<F: MapMonoid> Default for RBLazySegtree<F> {
+    fn default() -> Self {
+        vec![].into()
     }
 }
 

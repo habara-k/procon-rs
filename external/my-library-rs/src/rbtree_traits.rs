@@ -4,7 +4,7 @@ use std::mem;
 const RED: bool = false;
 const BLACK: bool = true;
 
-pub trait Node {
+pub trait NodeElem {
     fn l(&self) -> &Option<Box<Self>>;
     fn r(&self) -> &Option<Box<Self>>;
     fn height(&self) -> usize;
@@ -17,7 +17,9 @@ pub trait Node {
         }
         0
     }
+}
 
+pub trait NodeOps: NodeElem {
     fn connect(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self>;
     fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>);
     fn as_root(p: Box<Self>) -> Box<Self> {
@@ -29,7 +31,7 @@ pub trait Node {
     }
 }
 
-pub trait Merge: Node {
+pub trait Merge: NodeOps {
     fn merge(a: Option<Box<Self>>, b: Option<Box<Self>>) -> Option<Box<Self>> {
         if a.is_none() {
             return b;
@@ -129,7 +131,7 @@ pub trait Merge: Node {
     }
 }
 
-pub trait Split: Merge + Node {
+pub trait Split: Merge {
     fn split_range(
         p: Option<Box<Self>>,
         l: usize,
@@ -162,26 +164,28 @@ pub trait Split: Merge + Node {
 }
 
 pub trait Value<T> {
+    fn val(&self) -> T;
+}
+pub trait NewLeaf<T> {
     fn new_leaf(val: T) -> Box<Self>;
-    fn get_val(&self) -> T;
 }
 
-pub trait Insert<T>: Merge + Split + Value<T> {
+pub trait Insert<T>: Split + Value<T> + NewLeaf<T> {
     fn insert(p: Option<Box<Self>>, k: usize, val: T) -> Option<Box<Self>> {
         assert!(k <= Self::len(&p));
         let (a, b) = Self::split(p, k);
         Self::merge(Self::merge(a, Some(Self::new_leaf(val))), b)
     }
 }
-pub trait Remove<T>: Merge + Split + Value<T> {
+pub trait Remove<T>: Split + Value<T> {
     fn remove(p: Option<Box<Self>>, k: usize) -> (Option<Box<Self>>, T) {
         assert!(k < Self::len(&p));
         let (a, b, c) = Self::split_range(p, k, k + 1);
-        (Self::merge(a, c), b.unwrap().get_val())
+        (Self::merge(a, c), b.unwrap().val())
     }
 }
 
-pub trait BuildFromSeq<T: Clone>: Merge + Value<T> {
+pub trait BuildFromSeq<T: Clone>: Merge + NewLeaf<T> {
     fn build(v: &[T], l: usize, r: usize) -> Option<Box<Self>> {
         assert!(l <= r && r <= v.len());
         if l == r {
@@ -248,7 +252,7 @@ pub trait RangeFold<M: Monoid>: Root<M::S> {
         let root = mem::replace(self.mut_root(), None);
         let (a, b, c) = <Self as Root<M::S>>::Node::split_range(root, l, r);
 
-        let val: M::S = b.as_ref().unwrap().get_val();
+        let val: M::S = b.as_ref().unwrap().val();
 
         *self.mut_root() =
             <Self as Root<M::S>>::Node::merge(<Self as Root<M::S>>::Node::merge(a, b), c);

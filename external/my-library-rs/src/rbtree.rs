@@ -10,13 +10,9 @@ use crate::rbtree_traits::{
 /// use my_library_rs::*;
 ///
 /// let mut v: RBTree<u32> = vec![60, 20, 30, 40].into();
-/// dbg!(v.len());
 /// v.insert(0, 10);  // [10, 60, 20, 30, 40]
-/// dbg!(v.len());
 /// v.insert(3, 30);  // [10, 60, 20, 30, 30, 40]
-/// dbg!(v.len());
 /// v.remove(1);      // [10, 20, 30, 30, 40]
-/// dbg!(v.len());
 ///
 /// assert_eq!(v.len(), 5);
 /// assert_eq!(v.get(0), 10);

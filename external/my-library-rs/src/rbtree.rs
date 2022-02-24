@@ -465,13 +465,10 @@ impl<T:Clone + Ord> RBTree<T> {
 /// assert_eq!(seg.prod(1, 4), 1110);
 /// assert_eq!(seg.prod(3, 5), 11000);
 /// ```
-//struct RBTree<T> {
 pub struct RBSegtree<M: Monoid> {
-    //root: Option<Box<RightNode<T>>>,
     root: Option<Box<MonoidNode<M>>>,
 }
 
-//struct RightNode<T> {
 pub struct MonoidNode<M: Monoid> {
     l: Option<Box<Self>>,
     r: Option<Box<Self>>,
@@ -479,10 +476,8 @@ pub struct MonoidNode<M: Monoid> {
     black: bool,
     size: usize,
 
-    //val: T,
     val: M::S,
 }
-//impl<T: Clone> Node for RightNode<T> {
 impl<M: Monoid> Node for MonoidNode<M> {
     fn l(&self) -> &Option<Box<Self>> { &self.l }
     fn r(&self) -> &Option<Box<Self>> { &self.r }
@@ -508,9 +503,7 @@ impl<M: Monoid> Node for MonoidNode<M> {
         (p.l.unwrap(), p.r.unwrap())
     }
 }
-//impl<T: Clone> Value<T> for RightNode<T> {
 impl<M: Monoid> Value<M::S> for MonoidNode<M> {
-    //fn new_leaf(val: T) -> Box<Self> {
     fn new_leaf(val: M::S) -> Box<Self> {
         Box::new(Self {
             l: None,
@@ -521,23 +514,17 @@ impl<M: Monoid> Value<M::S> for MonoidNode<M> {
             val,
         })
     }
-    //fn get_val(&self) -> T {
     fn get_val(&self) -> M::S {
         self.val.clone()
     }
 }
-//impl<T: Clone> MergeSplit for RightNode<T> {}
 impl<M: Monoid> Merge for MonoidNode<M> {}
 impl<M: Monoid> Split for MonoidNode<M> {}
-//impl<T: Clone> InsertRemove<T> for RightNode<T> {}
 impl<M: Monoid> Insert<M::S> for MonoidNode<M> {}
 impl<M: Monoid> Remove<M::S> for MonoidNode<M> {}
-//impl<T: Clone> BuildFromVec<T> for RightNode<T> {}
 impl<M: Monoid> BuildFromSeq<M::S> for MonoidNode<M> {}
 
-//impl<T:Clone> Root<T> for RBTree<T> {
 impl<M:Monoid> Root<M::S> for RBSegtree<M> {
-    //type Node = RightNode<T>;
     type Node = MonoidNode<M>;
     fn root(&self) -> &Option<Box<Self::Node>> {
         &self.root
@@ -550,13 +537,6 @@ impl<M:Monoid> Root<M::S> for RBSegtree<M> {
     }
 }
 
-//impl<T:Clone> From<Vec<T>> for RBTree<T> {
-//    fn from(v: Vec<T>) -> Self {
-//        Self {
-//            root: <Self as Root<T>>::Node::build(&v, 0, v.len())
-//        }
-//    }
-//}
 impl<M: Monoid> From<Vec<M::S>> for RBSegtree<M> {
     fn from(v: Vec<M::S>) -> Self {
         Self {
@@ -622,8 +602,7 @@ impl<M:Monoid> RangeFold<M> for RBSegtree<M> {}
 /// assert_eq!(seg.get(3), 1020);
 /// assert_eq!(seg.get(4), 10020);
 /// ```
-//struct RightNode<T> {
-//struct MonoidNode<M: Monoid> {
+
 pub struct MapMonoidNode<F: MapMonoid> {
     l: Option<Box<Self>>,
     r: Option<Box<Self>>,
@@ -631,13 +610,9 @@ pub struct MapMonoidNode<F: MapMonoid> {
     black: bool,
     size: usize,
 
-    //val: T,
-    //val: M::S,
     val: <F::M as Monoid>::S,
     lazy: F::F,
 }
-//impl<T: Clone> Node for RightNode<T> {
-//impl<M: Monoid> Node for MonoidNode<M> {
 impl<F: MapMonoid> Node for MapMonoidNode<F> {
     fn l(&self) -> &Option<Box<Self>> { &self.l }
     fn r(&self) -> &Option<Box<Self>> { &self.r }
@@ -652,7 +627,6 @@ impl<F: MapMonoid> Node for MapMonoidNode<F> {
         Box::new(Self {
             size: l.size + r.size,
             height: l.height + black as usize,
-            //val: r.val.clone(),
             val: F::binary_operation(&l.val, &r.val),
             lazy: F::identity_map(),
             black,
@@ -676,11 +650,7 @@ impl<F: MapMonoid> MapMonoidNode<F> {
     }
 }
 
-//impl<T: Clone> Value<T> for RightNode<T> {
-//impl<M: Monoid> Value<M::S> for MonoidNode<M> {
 impl<F: MapMonoid> Value<<F::M as Monoid>::S> for MapMonoidNode<F> {
-    //fn new_leaf(val: T) -> Box<Self> {
-    //fn new_leaf(val: M::S) -> Box<Self> {
     fn new_leaf(val: <F::M as Monoid>::S) -> Box<Self> {
         Box::new(Self {
             l: None,
@@ -692,36 +662,20 @@ impl<F: MapMonoid> Value<<F::M as Monoid>::S> for MapMonoidNode<F> {
             lazy: F::identity_map(),
         })
     }
-    //fn get_val(&self) -> T {
-    //fn get_val(&self) -> M::S {
     fn get_val(&self) -> <F::M as Monoid>::S {
         self.val.clone()
     }
 }
-//impl<T: Clone> MergeSplit for RightNode<T> {}
-//impl<M: Monoid> MergeSplit for MonoidNode<M> {}
 impl<F: MapMonoid> Merge for MapMonoidNode<F> {}
 impl<F: MapMonoid> Split for MapMonoidNode<F> {}
-//impl<T: Clone> InsertRemove<T> for RightNode<T> {}
-//impl<M: Monoid> InsertRemove<M::S> for MonoidNode<M> {}
 impl<F: MapMonoid> Insert<<F::M as Monoid>::S> for MapMonoidNode<F> {}
 impl<F: MapMonoid> Remove<<F::M as Monoid>::S> for MapMonoidNode<F> {}
-//impl<T: Clone> BuildFromVec<T> for RightNode<T> {}
-//impl<M: Monoid> BuildFromVec<M::S> for MonoidNode<M> {}
 impl<F: MapMonoid> BuildFromSeq<<F::M as Monoid>::S> for MapMonoidNode<F> {}
 
-//struct RBTree<T> {
-//struct RBSegtree<M: Monoid> {
 pub struct RBLazySegtree<F: MapMonoid> {
-    //root: Option<Box<RightNode<T>>>,
-    //root: Option<Box<MonoidNode<M>>>,
     root: Option<Box<MapMonoidNode<F>>>,
 }
-//impl<T:Clone> Root<T> for RBTree<T> {
-//impl<M:Monoid> Root<M::S> for RBSegtree<M> {
 impl<F:MapMonoid> Root<<F::M as Monoid>::S> for RBLazySegtree<F> {
-    //type Node = RightNode<T>;
-    //type Node = MonoidNode<M>;
     type Node = MapMonoidNode<F>;
     fn root(&self) -> &Option<Box<Self::Node>> {
         &self.root
@@ -734,20 +688,6 @@ impl<F:MapMonoid> Root<<F::M as Monoid>::S> for RBLazySegtree<F> {
     }
 }
 
-//impl<T:Clone> From<Vec<T>> for RBTree<T> {
-//    fn from(v: Vec<T>) -> Self {
-//        Self {
-//            root: <Self as Root<T>>::Node::build(&v, 0, v.len())
-//        }
-//    }
-//}
-//impl<M: Monoid> From<Vec<M::S>> for RBSegtree<M> {
-//    fn from(v: Vec<M::S>) -> Self {
-//        Self {
-//            root: <Self as Root<M::S>>::Node::build(&v, 0, v.len())
-//        }
-//    }
-//}
 impl<F: MapMonoid> From<Vec<<F::M as Monoid>::S>> for RBLazySegtree<F> {
     fn from(v: Vec<<F::M as Monoid>::S>) -> Self {
         Self {
@@ -756,7 +696,6 @@ impl<F: MapMonoid> From<Vec<<F::M as Monoid>::S>> for RBLazySegtree<F> {
     }
 }
 
-//impl<M:Monoid> RangeFold<M> for RBSegtree<M> {}
 impl<F:MapMonoid> RangeFold<F::M> for RBLazySegtree<F> {}
 
 impl<F:MapMonoid> LazyEval<F> for RBLazySegtree<F> {

@@ -98,11 +98,7 @@ pub trait Merge: Node {
                 //         (RED,h)  r(RED,h)     =>      (BLACK,h+1)  r(BLACK,h+1)
                 //             \                          /     \
                 //   c(RED,h)   lr(BLACK,h)           c(RED,h)   lr(BLACK,h)
-                Self::connect(
-                    Self::connect(c, lr, BLACK),
-                    Self::as_root(r),
-                    RED,
-                )
+                Self::connect(Self::connect(c, lr, BLACK), Self::as_root(r), RED)
             };
         }
         if a.height() > b.height() {
@@ -121,11 +117,7 @@ pub trait Merge: Node {
             return if l.black() {
                 Self::connect(Self::connect(l, rl, RED), c, BLACK)
             } else {
-                Self::connect(
-                    Self::as_root(l),
-                    Self::connect(rl, c, BLACK),
-                    RED,
-                )
+                Self::connect(Self::as_root(l), Self::connect(rl, c, BLACK), RED)
             };
         }
 
@@ -167,7 +159,6 @@ pub trait Split: Merge + Node {
         }
         (Some(Self::as_root(l)), Some(Self::as_root(r)))
     }
-
 }
 
 pub trait Value<T> {
@@ -185,7 +176,7 @@ pub trait Insert<T>: Merge + Split + Value<T> {
 pub trait Remove<T>: Merge + Split + Value<T> {
     fn remove(p: Option<Box<Self>>, k: usize) -> (Option<Box<Self>>, T) {
         assert!(k < Self::len(&p));
-        let (a, b, c) = Self::split_range(p, k, k+1);
+        let (a, b, c) = Self::split_range(p, k, k + 1);
         (Self::merge(a, c), b.unwrap().get_val())
     }
 }
@@ -196,16 +187,15 @@ pub trait BuildFromSeq<T: Clone>: Merge + Value<T> {
         if l == r {
             return None;
         }
-        if l+1 == r {
+        if l + 1 == r {
             return Some(Self::new_leaf(v[l].clone()));
         }
         Self::merge(
-            Self::build(v, l, (l+r) / 2),
-            Self::build(v, (l+r) / 2, r),
+            Self::build(v, l, (l + r) / 2),
+            Self::build(v, (l + r) / 2, r),
         )
     }
 }
-
 
 pub trait Root<T: Clone> {
     type Node: Insert<T> + Remove<T> + BuildFromSeq<T>;
@@ -258,7 +248,8 @@ pub trait RangeFold<M: Monoid>: Root<M::S> {
 
         let val: M::S = b.as_ref().unwrap().get_val();
 
-        *self.mut_root() = <Self as Root<M::S>>::Node::merge(<Self as Root<M::S>>::Node::merge(a, b), c);
+        *self.mut_root() =
+            <Self as Root<M::S>>::Node::merge(<Self as Root<M::S>>::Node::merge(a, b), c);
         val
     }
 }
@@ -274,12 +265,13 @@ pub trait LazyEval<F: MapMonoid>: Root<<F::M as Monoid>::S> {
 
         Self::apply(b.as_mut().unwrap(), f);
 
-        *self.mut_root() = <Self as Root<<F::M as Monoid>::S>>::Node::merge(<Self as Root<<F::M as Monoid>::S>>::Node::merge(a, b), c);
+        *self.mut_root() = <Self as Root<<F::M as Monoid>::S>>::Node::merge(
+            <Self as Root<<F::M as Monoid>::S>>::Node::merge(a, b),
+            c,
+        );
     }
     fn apply(p: &mut Box<Self::Node>, f: F::F);
 }
-
-
 
 /// ac-library-rs と同じ形式
 pub trait Monoid {
@@ -304,7 +296,6 @@ pub trait MapMonoid {
     fn mapping(f: &Self::F, x: &<Self::M as Monoid>::S) -> <Self::M as Monoid>::S;
     fn composition(f: &Self::F, g: &Self::F) -> Self::F;
 }
-
 
 // {{ RBTree<T> の定義
 /// 列を管理する平衡二分木.
@@ -350,11 +341,21 @@ pub struct RightNode<T> {
     val: T,
 }
 impl<T: Clone> Node for RightNode<T> {
-    fn l(&self) -> &Option<Box<Self>> { &self.l }
-    fn r(&self) -> &Option<Box<Self>> { &self.r }
-    fn height(&self) -> usize { self.height }
-    fn black(&self) -> bool { self.black }
-    fn size(&self) -> usize { self.size }
+    fn l(&self) -> &Option<Box<Self>> {
+        &self.l
+    }
+    fn r(&self) -> &Option<Box<Self>> {
+        &self.r
+    }
+    fn height(&self) -> usize {
+        self.height
+    }
+    fn black(&self) -> bool {
+        self.black
+    }
+    fn size(&self) -> usize {
+        self.size
+    }
 
     fn connect(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
         assert_eq!(l.height, r.height);
@@ -394,7 +395,7 @@ impl<T: Clone> Insert<T> for RightNode<T> {}
 impl<T: Clone> Remove<T> for RightNode<T> {}
 impl<T: Clone> BuildFromSeq<T> for RightNode<T> {}
 
-impl<T:Clone> Root<T> for RBTree<T> {
+impl<T: Clone> Root<T> for RBTree<T> {
     type Node = RightNode<T>;
     fn root(&self) -> &Option<Box<Self::Node>> {
         &self.root
@@ -406,14 +407,14 @@ impl<T:Clone> Root<T> for RBTree<T> {
         Self { root }
     }
 }
-impl<T:Clone> From<Vec<T>> for RBTree<T> {
+impl<T: Clone> From<Vec<T>> for RBTree<T> {
     fn from(v: Vec<T>) -> Self {
         Self {
-            root: <Self as Root<T>>::Node::build(&v, 0, v.len())
+            root: <Self as Root<T>>::Node::build(&v, 0, v.len()),
         }
     }
 }
-impl<T:Clone + Ord> RBTree<T> {
+impl<T: Clone + Ord> RBTree<T> {
     pub fn lower_bound(&self, val: T) -> usize {
         if self.root().is_none() {
             return 0;
@@ -436,7 +437,6 @@ impl<T:Clone + Ord> RBTree<T> {
 }
 
 // RBTree<T> の定義 }}
-
 
 // {{ RBSegtree<T> の定義
 /// モノイドが載る平衡二分木.
@@ -479,11 +479,21 @@ pub struct MonoidNode<M: Monoid> {
     val: M::S,
 }
 impl<M: Monoid> Node for MonoidNode<M> {
-    fn l(&self) -> &Option<Box<Self>> { &self.l }
-    fn r(&self) -> &Option<Box<Self>> { &self.r }
-    fn height(&self) -> usize { self.height }
-    fn black(&self) -> bool { self.black }
-    fn size(&self) -> usize { self.size }
+    fn l(&self) -> &Option<Box<Self>> {
+        &self.l
+    }
+    fn r(&self) -> &Option<Box<Self>> {
+        &self.r
+    }
+    fn height(&self) -> usize {
+        self.height
+    }
+    fn black(&self) -> bool {
+        self.black
+    }
+    fn size(&self) -> usize {
+        self.size
+    }
 
     fn connect(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
         assert_eq!(l.height, r.height);
@@ -524,7 +534,7 @@ impl<M: Monoid> Insert<M::S> for MonoidNode<M> {}
 impl<M: Monoid> Remove<M::S> for MonoidNode<M> {}
 impl<M: Monoid> BuildFromSeq<M::S> for MonoidNode<M> {}
 
-impl<M:Monoid> Root<M::S> for RBSegtree<M> {
+impl<M: Monoid> Root<M::S> for RBSegtree<M> {
     type Node = MonoidNode<M>;
     fn root(&self) -> &Option<Box<Self::Node>> {
         &self.root
@@ -540,15 +550,14 @@ impl<M:Monoid> Root<M::S> for RBSegtree<M> {
 impl<M: Monoid> From<Vec<M::S>> for RBSegtree<M> {
     fn from(v: Vec<M::S>) -> Self {
         Self {
-            root: <Self as Root<M::S>>::Node::build(&v, 0, v.len())
+            root: <Self as Root<M::S>>::Node::build(&v, 0, v.len()),
         }
     }
 }
 
-impl<M:Monoid> RangeFold<M> for RBSegtree<M> {}
+impl<M: Monoid> RangeFold<M> for RBSegtree<M> {}
 
 // RBSegtree<T> の定義 }}
-
 
 // {{ RBLazySegtree<T> の定義
 /// 作用素モノイドが載る平衡二分木.
@@ -614,11 +623,21 @@ pub struct MapMonoidNode<F: MapMonoid> {
     lazy: F::F,
 }
 impl<F: MapMonoid> Node for MapMonoidNode<F> {
-    fn l(&self) -> &Option<Box<Self>> { &self.l }
-    fn r(&self) -> &Option<Box<Self>> { &self.r }
-    fn height(&self) -> usize { self.height }
-    fn black(&self) -> bool { self.black }
-    fn size(&self) -> usize { self.size }
+    fn l(&self) -> &Option<Box<Self>> {
+        &self.l
+    }
+    fn r(&self) -> &Option<Box<Self>> {
+        &self.r
+    }
+    fn height(&self) -> usize {
+        self.height
+    }
+    fn black(&self) -> bool {
+        self.black
+    }
+    fn size(&self) -> usize {
+        self.size
+    }
 
     fn connect(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
         assert_eq!(l.height, r.height);
@@ -675,7 +694,7 @@ impl<F: MapMonoid> BuildFromSeq<<F::M as Monoid>::S> for MapMonoidNode<F> {}
 pub struct RBLazySegtree<F: MapMonoid> {
     root: Option<Box<MapMonoidNode<F>>>,
 }
-impl<F:MapMonoid> Root<<F::M as Monoid>::S> for RBLazySegtree<F> {
+impl<F: MapMonoid> Root<<F::M as Monoid>::S> for RBLazySegtree<F> {
     type Node = MapMonoidNode<F>;
     fn root(&self) -> &Option<Box<Self::Node>> {
         &self.root
@@ -691,18 +710,17 @@ impl<F:MapMonoid> Root<<F::M as Monoid>::S> for RBLazySegtree<F> {
 impl<F: MapMonoid> From<Vec<<F::M as Monoid>::S>> for RBLazySegtree<F> {
     fn from(v: Vec<<F::M as Monoid>::S>) -> Self {
         Self {
-            root: <Self as Root<<F::M as Monoid>::S>>::Node::build(&v, 0, v.len())
+            root: <Self as Root<<F::M as Monoid>::S>>::Node::build(&v, 0, v.len()),
         }
     }
 }
 
-impl<F:MapMonoid> RangeFold<F::M> for RBLazySegtree<F> {}
+impl<F: MapMonoid> RangeFold<F::M> for RBLazySegtree<F> {}
 
-impl<F:MapMonoid> LazyEval<F> for RBLazySegtree<F> {
+impl<F: MapMonoid> LazyEval<F> for RBLazySegtree<F> {
     fn apply(p: &mut Box<Self::Node>, f: F::F) {
         Self::Node::apply(p, f);
     }
 }
 
 // RBLazySegtree<T> の定義 }}
-

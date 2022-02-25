@@ -1,5 +1,5 @@
 use crate::rbtree_traits::{
-    BuildFromSeq, Insert, LazyEval, Merge, NewLeaf, NodeElem, NodeOps, RangeFold, Remove,
+    BuildFromSeq, Insert, LazyEval, Merge, NewLeaf, NodeAttributes, NodeOps, RangeFold, Remove,
     Reversible, Root, Split, Value,
 };
 
@@ -361,7 +361,7 @@ macro_rules! impl_boilerplate {
             root: Option<Box<$node_type>>,
         }
 
-        impl<$param:$bound> NodeElem for $node_type {
+        impl<$param:$bound> NodeAttributes for $node_type {
             fn l(&self) -> &Option<Box<Self>> {
                 &self.l
             }

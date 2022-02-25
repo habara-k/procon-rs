@@ -4,7 +4,7 @@ use std::mem;
 const RED: bool = false;
 const BLACK: bool = true;
 
-pub trait NodeAttribute {
+pub trait NodeAttributes {
     fn l(&self) -> &Option<Box<Self>>;
     fn r(&self) -> &Option<Box<Self>>;
     fn height(&self) -> usize;
@@ -19,7 +19,7 @@ pub trait NodeAttribute {
     }
 }
 
-pub trait NodeOps: NodeAttribute {
+pub trait NodeOps: NodeAttributes {
     fn connect(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self>;
     fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>);
     fn as_root(p: Box<Self>) -> Box<Self> {
@@ -250,12 +250,11 @@ pub trait RangeFold<M: Monoid>: Root<M::S> {
         }
 
         let root = mem::replace(self.mut_root(), None);
-        let (a, b, c) = <Self as Root<M::S>>::Node::split_range(root, l, r);
+        let (a, b, c) = Self::Node::split_range(root, l, r);
 
-        let val: M::S = b.as_ref().unwrap().val();
+        let val = b.as_ref().unwrap().val();
 
-        *self.mut_root() =
-            <Self as Root<M::S>>::Node::merge(<Self as Root<M::S>>::Node::merge(a, b), c);
+        *self.mut_root() = Self::Node::merge(Self::Node::merge(a, b), c);
         val
     }
 }
@@ -267,14 +266,11 @@ pub trait LazyEval<F: MapMonoid>: Root<<F::M as Monoid>::S> {
             return;
         }
         let root = mem::replace(self.mut_root(), None);
-        let (a, mut b, c) = <Self as Root<<F::M as Monoid>::S>>::Node::split_range(root, l, r);
+        let (a, mut b, c) = Self::Node::split_range(root, l, r);
 
         Self::apply(b.as_mut().unwrap(), f);
 
-        *self.mut_root() = <Self as Root<<F::M as Monoid>::S>>::Node::merge(
-            <Self as Root<<F::M as Monoid>::S>>::Node::merge(a, b),
-            c,
-        );
+        *self.mut_root() = Self::Node::merge(Self::Node::merge(a, b), c);
     }
     fn apply(p: &mut Box<Self::Node>, f: F::F);
 }
@@ -286,11 +282,11 @@ pub trait Reversible<T: Clone>: Root<T> {
             return;
         }
         let root = mem::replace(self.mut_root(), None);
-        let (a, mut b, c) = <Self as Root<T>>::Node::split_range(root, l, r);
+        let (a, mut b, c) = Self::Node::split_range(root, l, r);
 
         Self::reverse(b.as_mut().unwrap());
 
-        *self.mut_root() = <Self as Root<T>>::Node::merge(<Self as Root<T>>::Node::merge(a, b), c);
+        *self.mut_root() = Self::Node::merge(Self::Node::merge(a, b), c);
     }
     fn reverse(p: &mut Box<Self::Node>);
 }

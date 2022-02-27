@@ -339,9 +339,10 @@ pub trait RangeReverse<T: Reverse>: Tree<Node = T> {
     }
 }
 
+//$($ty:tt)*
 macro_rules! impl_node {
-    ($node:ident<$param:ident : $bound:tt>, $val:ty, $link:ty) => {
-        impl<$param: $bound> Node for $node<$param> {
+    ($node:ty, $val:ty, $link:ty where $param:ident : $($bound:tt)*) => {
+        impl<$param: $($bound)*> Node for $node {
             type Value = $val;
             type Link = $link;
             fn new(l: Self::Link, r: Self::Link, black: bool) -> Self::Link {
@@ -397,8 +398,8 @@ macro_rules! impl_reverse {
 }
 
 macro_rules! impl_tree {
-    ($tree:ident<$param:ident : $bound:tt>, $node:ty) => {
-        impl<$param: $bound> Root for $tree<$param> {
+    ($tree:ty, $node:ty where $param:ident : $($bound:tt)*) => {
+        impl<$param: $($bound)*> Root for $tree {
             type Node = $node;
             fn root(&self) -> &Option<<Self::Node as Node>::Link> {
                 &self.root
@@ -410,15 +411,15 @@ macro_rules! impl_tree {
                 Self { root }
             }
         }
-        impl<$param: $bound> Tree for $tree<$param> {}
-        impl<$param: $bound> From<Vec<<$node as Node>::Value>> for $tree<$param> {
+        impl<$param: $($bound)*> Tree for $tree {}
+        impl<$param: $($bound)*> From<Vec<<$node as Node>::Value>> for $tree {
             fn from(v: Vec<<$node as Node>::Value>) -> Self {
                 Self {
                     root: <Self as Root>::Node::build(&v, 0, v.len()),
                 }
             }
         }
-        impl<$param: $bound> Default for $tree<$param> {
+        impl<$param: $($bound)*> Default for $tree {
             fn default() -> Self {
                 Self { root: None }
             }
@@ -427,7 +428,7 @@ macro_rules! impl_tree {
 }
 
 /// 列を管理する平衡二分木.
-/// 挿入, 削除, 取得, 分割, 統合, lower_bound を O(log n) で行う.
+/// 挿入, 削除, 取得, 分割, 統合 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -439,7 +440,6 @@ macro_rules! impl_tree {
 ///
 /// assert_eq!(v.len(), 4);
 /// assert_eq!((v.get(0), v.get(1), v.get(2), v.get(3)), (10, 30, 30, 40));
-/// assert_eq!((v.lower_bound(25), v.lower_bound(30), v.lower_bound(35)), (1, 1, 3));
 ///
 /// let mut t: RBTree<u32> = Default::default();
 /// v.split(2, &mut t);  // [10, 30], [30, 40];
@@ -451,41 +451,20 @@ macro_rules! impl_tree {
 /// assert_eq!(v.collect_vec(), vec![]);
 /// ```
 pub struct RBTree<U> {
-    root: Option<Box<RightNode<U>>>,
+    root: Option<Box<DefaultNode<U>>>,
 }
-impl_tree!(RBTree<U: Clone>, RightNode<U>);
-impl<U: Clone + Ord> RBTree<U> {
-    pub fn lower_bound(&self, val: U) -> usize {
-        if self.root().is_none() {
-            return 0;
-        }
+impl_tree!(RBTree<U>, DefaultNode<U> where U: Clone + Default);
 
-        let mut p = self.root().as_ref().unwrap();
-        let mut k = 0;
-
-        while let (Some(l), Some(r)) = (&p.l, &p.r) {
-            if l.val < val {
-                p = r;
-                k += l.size();
-            } else {
-                p = l;
-            }
-        }
-
-        k + (p.val < val) as usize
-    }
-}
-
-pub struct RightNode<U> {
+pub struct DefaultNode<U> {
     val: U,
     base: Base,
     l: Option<Box<Self>>,
     r: Option<Box<Self>>,
 }
-impl<U: Clone> RightNode<U> {
+impl<U: Clone + Default> DefaultNode<U> {
     fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
         Box::new(Self {
-            val: r.val.clone(),
+            val: Default::default(),
             base: Base::new(&l.base, &r.base, black),
             l: Some(l),
             r: Some(r),
@@ -508,7 +487,7 @@ impl<U: Clone> RightNode<U> {
         p
     }
 }
-impl_node!(RightNode<U: Clone>, U, Box<RightNode<U>>);
+impl_node!(DefaultNode<U>, U, Box<DefaultNode<U>> where U: Clone + Default);
 
 /// モノイドが載る平衡二分木.
 /// 挿入, 削除, 区間取得, 分割, 統合を O(log n) で行う.
@@ -533,7 +512,7 @@ impl_node!(RightNode<U: Clone>, U, Box<RightNode<U>>);
 pub struct RBSegtree<M: Monoid> {
     root: Option<Box<MonoidNode<M>>>,
 }
-impl_tree!(RBSegtree<M: Monoid>, MonoidNode<M>);
+impl_tree!(RBSegtree<M>, MonoidNode<M> where M: Monoid);
 impl<M: Monoid> RangeFold<M, MonoidNode<M>> for RBSegtree<M> {}
 
 pub struct MonoidNode<M: Monoid> {
@@ -567,7 +546,7 @@ impl<M: Monoid> MonoidNode<M> {
         p
     }
 }
-impl_node!(MonoidNode<M: Monoid>, M::S, Box<MonoidNode<M>>);
+impl_node!(MonoidNode<M>, M::S, Box<MonoidNode<M>> where M: Monoid);
 
 /// 作用素モノイドが載る平衡二分木.
 /// 挿入, 削除, 区間取得, 区間作用, 分割, 統合 を O(log n) で行う.
@@ -607,7 +586,7 @@ impl_node!(MonoidNode<M: Monoid>, M::S, Box<MonoidNode<M>>);
 pub struct RBLazySegtree<F: MapMonoid> {
     root: Option<Box<MapMonoidNode<F>>>,
 }
-impl_tree!(RBLazySegtree<F: MapMonoid>, MapMonoidNode<F>);
+impl_tree!(RBLazySegtree<F>, MapMonoidNode<F> where F: MapMonoid);
 impl<F: MapMonoid> RangeFold<F::M, MapMonoidNode<F>> for RBLazySegtree<F> {}
 impl<F: MapMonoid> RangeApply<F, MapMonoidNode<F>> for RBLazySegtree<F> {}
 
@@ -650,7 +629,7 @@ impl<F: MapMonoid> MapMonoidNode<F> {
         p
     }
 }
-impl_node!(MapMonoidNode<F: MapMonoid>, <F::M as Monoid>::S, Box<MapMonoidNode<F>>);
+impl_node!(MapMonoidNode<F>, <F::M as Monoid>::S, Box<MapMonoidNode<F>> where F: MapMonoid);
 impl_apply!(MapMonoidNode<F: MapMonoid>, F);
 
 /// 作用素モノイドが載る, 区間反転が可能な平衡二分木.
@@ -696,8 +675,8 @@ pub struct ReversibleRBLazySegtree<F: MapMonoid> {
     root: Option<Box<ReversibleMapMonoidNode<F>>>,
 }
 impl_tree!(
-    ReversibleRBLazySegtree<F: MapMonoid>,
-    ReversibleMapMonoidNode<F>
+    ReversibleRBLazySegtree<F>,
+    ReversibleMapMonoidNode<F> where F: MapMonoid
 );
 impl<F: MapMonoid> RangeFold<F::M, ReversibleMapMonoidNode<F>> for ReversibleRBLazySegtree<F> {}
 impl<F: MapMonoid> RangeApply<F, ReversibleMapMonoidNode<F>> for ReversibleRBLazySegtree<F> {}
@@ -750,7 +729,7 @@ impl<F: MapMonoid> ReversibleMapMonoidNode<F> {
         p
     }
 }
-impl_node!(ReversibleMapMonoidNode<F: MapMonoid>, <F::M as Monoid>::S, Box<ReversibleMapMonoidNode<F>>);
+impl_node!(ReversibleMapMonoidNode<F>, <F::M as Monoid>::S, Box<ReversibleMapMonoidNode<F>> where F: MapMonoid);
 impl_apply!(ReversibleMapMonoidNode<F: MapMonoid>, F);
 impl_reverse!(ReversibleMapMonoidNode<F: MapMonoid>);
 
@@ -769,7 +748,6 @@ use std::rc::Rc;
 ///
 /// assert_eq!(v.len(), 4);
 /// assert_eq!((v.get(0), v.get(1), v.get(2), v.get(3)), (10, 30, 30, 40));
-/// assert_eq!((v.lower_bound(25), v.lower_bound(30), v.lower_bound(35)), (1, 1, 3));
 ///
 /// let mut t: PersistentRBTree<u32> = Default::default();
 /// v.split(2, &mut t);  // [10, 30], [30, 40];
@@ -786,43 +764,20 @@ use std::rc::Rc;
 /// ```
 #[derive(Clone)]
 pub struct PersistentRBTree<U> {
-    root: Option<Rc<PersistentRightNode<U>>>,
+    root: Option<Rc<PersistentDefaultNode<U>>>,
 }
-impl_tree!(PersistentRBTree<U: Clone>, PersistentRightNode<U>);
+impl_tree!(PersistentRBTree<U>, PersistentDefaultNode<U> where U: Clone + Default);
 
-// TODO: 再利用
-impl<U: Clone + Ord> PersistentRBTree<U> {
-    pub fn lower_bound(&self, val: U) -> usize {
-        if self.root().is_none() {
-            return 0;
-        }
-
-        let mut p = self.root().as_ref().unwrap();
-        let mut k = 0;
-
-        while let (Some(l), Some(r)) = (&p.l, &p.r) {
-            if l.val < val {
-                p = r;
-                k += l.size();
-            } else {
-                p = l;
-            }
-        }
-
-        k + (p.val < val) as usize
-    }
-}
-
-pub struct PersistentRightNode<U> {
+pub struct PersistentDefaultNode<U> {
     val: U,
     base: Base,
     l: Option<Rc<Self>>,
     r: Option<Rc<Self>>,
 }
-impl<U: Clone> PersistentRightNode<U> {
+impl<U: Clone + Default> PersistentDefaultNode<U> {
     fn new(l: Rc<Self>, r: Rc<Self>, black: bool) -> Rc<Self> {
         Rc::new(Self {
-            val: r.val.clone(),
+            val: Default::default(),
             base: Base::new(&l.base, &r.base, black),
             l: Some(l),
             r: Some(r),
@@ -849,4 +804,4 @@ impl<U: Clone> PersistentRightNode<U> {
         })
     }
 }
-impl_node!(PersistentRightNode<U: Clone>, U, Rc<PersistentRightNode<U>>);
+impl_node!(PersistentDefaultNode<U>, U, Rc<PersistentDefaultNode<U>> where U: Clone + Default);

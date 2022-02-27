@@ -4,8 +4,8 @@ const BLACK: bool = true;
 pub trait Node<T: Clone> {
     fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self>;
     fn new_leaf(val: T) -> Box<Self>;
-    fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>);
-    fn as_root(p: Box<Self>) -> Box<Self>;
+    fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>);
+    fn into_root(self: Box<Self>) -> Box<Self>;
     fn black(&self) -> bool;
     fn height(&self) -> usize;
     fn size(&self) -> usize;
@@ -26,7 +26,7 @@ pub trait Node<T: Clone> {
         }
         let (a, b) = (a.unwrap(), b.unwrap());
         assert!(a.black() && b.black());
-        Some(Self::as_root(Self::merge_sub(a, b)))
+        Some(Self::merge_sub(a, b).into_root())
     }
     fn merge_sub(a: Box<Self>, b: Box<Self>) -> Box<Self> {
         // # Require
@@ -38,7 +38,7 @@ pub trait Node<T: Clone> {
         assert!(b.black());
 
         if a.height() < b.height() {
-            let (l, r) = Self::detach(b);
+            let (l, r) = b.detach();
             //      b(BLACK,h+1)
             //       /     \
             //   l(*,h)    r(*,h)
@@ -51,7 +51,7 @@ pub trait Node<T: Clone> {
                 return Self::new(Self::merge_sub(a, l), r, BLACK);
             }
 
-            let (ll, lr) = Self::detach(l);
+            let (ll, lr) = l.detach();
             //           b(BLACK,h+1)
             //           /      \
             //       l(RED,h)   r(*,h)
@@ -84,17 +84,17 @@ pub trait Node<T: Clone> {
                 //         (RED,h)  r(RED,h)     =>      (BLACK,h+1)  r(BLACK,h+1)
                 //        /    \                          /     \
                 //   c(RED,h)   lr(BLACK,h)           c(RED,h)   lr(BLACK,h)
-                Self::new(Self::new(c, lr, BLACK), Self::as_root(r), RED)
+                Self::new(Self::new(c, lr, BLACK), r.into_root(), RED)
             };
         }
         if a.height() > b.height() {
             // Do the reverse of the above procedure.
-            let (l, r) = Self::detach(a);
+            let (l, r) = a.detach();
             if r.black() {
                 return Self::new(l, Self::merge_sub(r, b), BLACK);
             }
 
-            let (rl, rr) = Self::detach(r);
+            let (rl, rr) = r.detach();
             let c = Self::merge_sub(rr, b);
             if c.black() {
                 return Self::new(l, Self::new(rl, c, RED), BLACK);
@@ -103,7 +103,7 @@ pub trait Node<T: Clone> {
             return if l.black() {
                 Self::new(Self::new(l, rl, RED), c, BLACK)
             } else {
-                Self::new(Self::as_root(l), Self::new(rl, c, BLACK), RED)
+                Self::new(l.into_root(), Self::new(rl, c, BLACK), RED)
             };
         }
 
@@ -131,16 +131,16 @@ pub trait Node<T: Clone> {
         if k == Self::len(&p) {
             return (p, None);
         }
-        let (l, r) = Self::detach(p.unwrap());
+        let (l, r) = p.unwrap().detach();
         if k < l.size() {
             let (a, b) = Self::split(Some(l), k);
-            return (a, Self::merge(b, Some(Self::as_root(r))));
+            return (a, Self::merge(b, Some(r.into_root())));
         }
         if k > l.size() {
             let (a, b) = Self::split(Some(r), k - l.size());
-            return (Self::merge(Some(Self::as_root(l)), a), b);
+            return (Self::merge(Some(l.into_root()), a), b);
         }
-        (Some(Self::as_root(l)), Some(Self::as_root(r)))
+        (Some(l.into_root()), Some(r.into_root()))
     }
     fn insert(p: Option<Box<Self>>, k: usize, val: T) -> Option<Box<Self>> {
         assert!(k <= Self::len(&p));
@@ -307,12 +307,12 @@ macro_rules! impl_node {
             fn new_leaf(val: $val) -> Box<Self> {
                 Self::new_leaf(val)
             }
-            fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
-                Self::detach(p)
+            fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
+                self.detach()
             }
-            fn as_root(mut p: Box<Self>) -> Box<Self> {
-                p.base.make_root();
-                p
+            fn into_root(mut self: Box<Self>) -> Box<Self> {
+                self.base.make_root();
+                self
             }
             fn black(&self) -> bool {
                 self.base.black
@@ -384,9 +384,9 @@ impl<T: Clone> RBNode<T> {
             r: None,
         })
     }
-    fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
-        assert!(!p.base.is_leaf());
-        (p.l.unwrap(), p.r.unwrap())
+    fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
+        assert!(!self.base.is_leaf());
+        (self.l.unwrap(), self.r.unwrap())
     }
 }
 impl_node!(RBNode<T: Clone>, T);
@@ -449,8 +449,8 @@ impl<M: Monoid> MonoidRBNode<M> {
             r: None,
         })
     }
-    fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
-        (p.l.unwrap(), p.r.unwrap())
+    fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
+        (self.l.unwrap(), self.r.unwrap())
     }
 }
 impl_node!(MonoidRBNode<M: Monoid>, M::S);
@@ -509,12 +509,12 @@ impl<F: MapMonoid> MapMonoidRBNode<F> {
             lazy: F::identity_map(),
         })
     }
-    fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
-        let (mut l, mut r) = (p.l.unwrap(), p.r.unwrap());
-        l.val = F::mapping(&p.lazy, &l.val);
-        r.val = F::mapping(&p.lazy, &r.val);
-        l.lazy = F::composition(&p.lazy, &l.lazy);
-        r.lazy = F::composition(&p.lazy, &r.lazy);
+    fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
+        let (mut l, mut r) = (self.l.unwrap(), self.r.unwrap());
+        l.val = F::mapping(&self.lazy, &l.val);
+        r.val = F::mapping(&self.lazy, &r.val);
+        l.lazy = F::composition(&self.lazy, &l.lazy);
+        r.lazy = F::composition(&self.lazy, &r.lazy);
         (l, r)
     }
 }
@@ -602,15 +602,15 @@ impl<F: MapMonoid> ReversibleMapMonoidRBNode<F> {
             rev: false,
         })
     }
-    fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
-        let (mut l, mut r) = (p.l.unwrap(), p.r.unwrap());
-        l.val = F::mapping(&p.lazy, &l.val);
-        r.val = F::mapping(&p.lazy, &r.val);
-        l.lazy = F::composition(&p.lazy, &l.lazy);
-        r.lazy = F::composition(&p.lazy, &r.lazy);
-        l.rev ^= p.rev;
-        r.rev ^= p.rev;
-        if p.rev {
+    fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
+        let (mut l, mut r) = (self.l.unwrap(), self.r.unwrap());
+        l.val = F::mapping(&self.lazy, &l.val);
+        r.val = F::mapping(&self.lazy, &r.val);
+        l.lazy = F::composition(&self.lazy, &l.lazy);
+        r.lazy = F::composition(&self.lazy, &r.lazy);
+        l.rev ^= self.rev;
+        r.rev ^= self.rev;
+        if self.rev {
             return (r, l);
         }
         (l, r)

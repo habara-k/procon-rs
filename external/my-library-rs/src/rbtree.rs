@@ -271,9 +271,11 @@ pub trait RangeFold<M: Monoid, T: Node<Item = M::S>>: Tree<Node = T>
 }
 
 pub use crate::algebra::MapMonoid;
-pub trait LazyEval<F: MapMonoid, T: Node<Item = <F::M as Monoid>::S>>: Tree<Node = T> {
-    fn apply(p: &mut Box<Self::Node>, f: F::F);
+pub trait Appliable<F: MapMonoid>: Node<Item = <F::M as Monoid>::S> {
+    fn apply(self: Box<Self>, f: F::F) -> Box<Self>;
+}
 
+pub trait LazyEval<F: MapMonoid, T: Appliable<F>>: Tree<Node = T> {
     fn apply_range(&mut self, l: usize, r: usize, f: F::F) {
         assert!(l <= r && r <= self.len());
         if l == r {
@@ -282,15 +284,16 @@ pub trait LazyEval<F: MapMonoid, T: Node<Item = <F::M as Monoid>::S>>: Tree<Node
         let root = mem::replace(self.mut_root(), None);
         let (a, mut b, c) = Self::Node::split_range(root, l, r);
 
-        Self::apply(b.as_mut().unwrap(), f);
+        b = Some(b.unwrap().apply(f));
 
         *self.mut_root() = Self::Node::merge(Self::Node::merge(a, b), c);
     }
 }
 
-pub trait Reverse: Tree {
-    fn reverse(p: &mut Box<Self::Node>);
-
+pub trait Reversible: Node {
+    fn reverse(self: Box<Self>) -> Box<Self>;
+}
+pub trait Reverse<T: Reversible>: Tree<Node = T> {
     fn reverse_range(&mut self, l: usize, r: usize) {
         assert!(l <= r && r <= self.len());
         if l == r {
@@ -299,7 +302,7 @@ pub trait Reverse: Tree {
         let root = mem::replace(self.mut_root(), None);
         let (a, mut b, c) = Self::Node::split_range(root, l, r);
 
-        Self::reverse(b.as_mut().unwrap());
+        b = Some(b.unwrap().reverse());
 
         *self.mut_root() = Self::Node::merge(Self::Node::merge(a, b), c);
     }
@@ -398,6 +401,29 @@ macro_rules! impl_tree {
 pub struct RBTree<T> {
     root: Option<Box<RBNode<T>>>,
 }
+impl_tree!(RBTree<T: Clone>, RBNode<T>);
+impl<T: Clone + Ord> RBTree<T> {
+    pub fn lower_bound(&self, val: T) -> usize {
+        if self.root().is_none() {
+            return 0;
+        }
+
+        let mut p = self.root().as_ref().unwrap();
+        let mut k = 0;
+
+        while let (Some(l), Some(r)) = (&p.l, &p.r) {
+            if l.val < val {
+                p = r;
+                k += l.size();
+            } else {
+                p = l;
+            }
+        }
+
+        k + (p.val < val) as usize
+    }
+}
+
 pub struct RBNode<T> {
     val: T,
     base: Base,
@@ -427,28 +453,6 @@ impl<T: Clone> RBNode<T> {
     }
 }
 impl_node!(RBNode<T: Clone>, T);
-impl_tree!(RBTree<T: Clone>, RBNode<T>);
-impl<T: Clone + Ord> RBTree<T> {
-    pub fn lower_bound(&self, val: T) -> usize {
-        if self.root().is_none() {
-            return 0;
-        }
-
-        let mut p = self.root().as_ref().unwrap();
-        let mut k = 0;
-
-        while let (Some(l), Some(r)) = (&p.l, &p.r) {
-            if l.val < val {
-                p = r;
-                k += l.size();
-            } else {
-                p = l;
-            }
-        }
-
-        k + (p.val < val) as usize
-    }
-}
 
 /// モノイドが載る平衡二分木.
 /// 挿入, 削除, 区間取得, 分割, 統合を O(log n) で行う.
@@ -473,6 +477,9 @@ impl<T: Clone + Ord> RBTree<T> {
 pub struct RBSegtree<M: Monoid> {
     root: Option<Box<MonoidRBNode<M>>>,
 }
+impl_tree!(RBSegtree<M: Monoid>, MonoidRBNode<M>);
+impl<M: Monoid> RangeFold<M, MonoidRBNode<M>> for RBSegtree<M> {}
+
 pub struct MonoidRBNode<M: Monoid> {
     val: M::S,
     base: Base,
@@ -501,8 +508,6 @@ impl<M: Monoid> MonoidRBNode<M> {
     }
 }
 impl_node!(MonoidRBNode<M: Monoid>, M::S);
-impl_tree!(RBSegtree<M: Monoid>, MonoidRBNode<M>);
-impl<M: Monoid> RangeFold<M, MonoidRBNode<M>> for RBSegtree<M> {}
 
 /// 作用素モノイドが載る平衡二分木.
 /// 挿入, 削除, 区間取得, 区間作用, 分割, 統合 を O(log n) で行う.
@@ -542,6 +547,13 @@ impl<M: Monoid> RangeFold<M, MonoidRBNode<M>> for RBSegtree<M> {}
 pub struct RBLazySegtree<F: MapMonoid> {
     root: Option<Box<MapMonoidRBNode<F>>>,
 }
+impl_tree!(
+    RBLazySegtree<F: MapMonoid>,
+    MapMonoidRBNode<F>
+);
+impl<F: MapMonoid> RangeFold<F::M, MapMonoidRBNode<F>> for RBLazySegtree<F> {}
+impl<F: MapMonoid> LazyEval<F, MapMonoidRBNode<F>> for RBLazySegtree<F> {}
+
 pub struct MapMonoidRBNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
     base: Base,
@@ -578,15 +590,11 @@ impl<F: MapMonoid> MapMonoidRBNode<F> {
     }
 }
 impl_node!(MapMonoidRBNode<F: MapMonoid>, <F::M as Monoid>::S);
-impl_tree!(
-    RBLazySegtree<F: MapMonoid>,
-    MapMonoidRBNode<F>
-);
-impl<F: MapMonoid> RangeFold<F::M, MapMonoidRBNode<F>> for RBLazySegtree<F> {}
-impl<F: MapMonoid> LazyEval<F, MapMonoidRBNode<F>> for RBLazySegtree<F> {
-    fn apply(p: &mut Box<Self::Node>, f: F::F) {
-        p.val = F::mapping(&f, &p.val);
-        p.lazy = F::composition(&f, &p.lazy);
+impl<F: MapMonoid> Appliable<F> for MapMonoidRBNode<F> {
+    fn apply(mut self: Box<Self>, f: F::F) -> Box<Self> {
+        self.val = F::mapping(&f, &self.val);
+        self.lazy = F::composition(&f, &self.lazy);
+        self
     }
 }
 
@@ -632,6 +640,14 @@ impl<F: MapMonoid> LazyEval<F, MapMonoidRBNode<F>> for RBLazySegtree<F> {
 pub struct ReversibleRBLazySegtree<F: MapMonoid> {
     root: Option<Box<ReversibleMapMonoidRBNode<F>>>,
 }
+impl_tree!(
+    ReversibleRBLazySegtree<F: MapMonoid>,
+    ReversibleMapMonoidRBNode<F>
+);
+impl<F: MapMonoid> RangeFold<F::M, ReversibleMapMonoidRBNode<F>> for ReversibleRBLazySegtree<F> {}
+impl<F: MapMonoid> LazyEval<F, ReversibleMapMonoidRBNode<F>> for ReversibleRBLazySegtree<F> {}
+impl<F: MapMonoid> Reverse<ReversibleMapMonoidRBNode<F>> for ReversibleRBLazySegtree<F> {}
+
 pub struct ReversibleMapMonoidRBNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
     base: Base,
@@ -676,19 +692,16 @@ impl<F: MapMonoid> ReversibleMapMonoidRBNode<F> {
     }
 }
 impl_node!(ReversibleMapMonoidRBNode<F: MapMonoid>, <F::M as Monoid>::S);
-impl_tree!(
-    ReversibleRBLazySegtree<F: MapMonoid>,
-    ReversibleMapMonoidRBNode<F>
-);
-impl<F: MapMonoid> RangeFold<F::M, ReversibleMapMonoidRBNode<F>> for ReversibleRBLazySegtree<F> {}
-impl<F: MapMonoid> LazyEval<F, ReversibleMapMonoidRBNode<F>> for ReversibleRBLazySegtree<F> {
-    fn apply(p: &mut Box<Self::Node>, f: F::F) {
-        p.val = F::mapping(&f, &p.val);
-        p.lazy = F::composition(&f, &p.lazy);
+impl<F: MapMonoid> Appliable<F> for ReversibleMapMonoidRBNode<F> {
+    fn apply(mut self: Box<Self>, f: F::F) -> Box<Self> {
+        self.val = F::mapping(&f, &self.val);
+        self.lazy = F::composition(&f, &self.lazy);
+        self
     }
 }
-impl<F: MapMonoid> Reverse for ReversibleRBLazySegtree<F> {
-    fn reverse(p: &mut Box<Self::Node>) {
-        p.rev ^= true;
+impl<F: MapMonoid> Reversible for ReversibleMapMonoidRBNode<F> {
+    fn reverse(mut self: Box<Self>) -> Box<Self> {
+        self.rev ^= true;
+        self
     }
 }

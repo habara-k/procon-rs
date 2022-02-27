@@ -404,8 +404,7 @@ impl_node!(RBNode<T: Clone>, T);
 ///
 /// assert_eq!(v.len(), 4);
 /// assert_eq!((v.get(0), v.get(1), v.get(2), v.get(3)), (10, 30, 30, 40));
-/// // TODO
-/// // assert_eq!((v.lower_bound(25), v.lower_bound(30), v.lower_bound(35)), (1, 1, 3));
+/// assert_eq!((v.lower_bound(25), v.lower_bound(30), v.lower_bound(35)), (1, 1, 3));
 ///
 /// let mut t: RBTree<u32> = Default::default();
 /// v.split(2, &mut t);  // [10, 30], [30, 40];
@@ -423,6 +422,27 @@ pub struct RBTree<T> {
     root: Option<Box<RBNode<T>>>,
 }
 impl_tree!(RBTree<T: Clone>, RBNode<T>, T);
+impl<T: Clone + Ord> RBTree<T> {
+    pub fn lower_bound(&self, val: T) -> usize {
+        if self.root().is_none() {
+            return 0;
+        }
+
+        let mut p = self.root().as_ref().unwrap();
+        let mut k = 0;
+
+        while let (Some(l), Some(r)) = (&p.l, &p.r) {
+            if l.val < val {
+                p = r;
+                k += l.size();
+            } else {
+                p = l;
+            }
+        }
+
+        k + (p.val < val) as usize
+    }
+}
 // end RBTree
 
 // begin RBSegtree

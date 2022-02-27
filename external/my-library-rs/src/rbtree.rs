@@ -1,6 +1,41 @@
 const RED: bool = false;
 const BLACK: bool = true;
 
+struct Base {
+    black: bool,
+    height: usize,
+    size: usize,
+}
+impl Base {
+    fn new(l: &Self, r: &Self, black: bool) -> Self {
+        assert_eq!(l.height, r.height);
+        assert!(l.black || black);
+        assert!(r.black || black);
+        Self {
+            black,
+            height: l.height + black as usize,
+            size: l.size + r.size,
+        }
+    }
+    fn new_leaf() -> Self {
+        Self {
+            black: true,
+            height: 1,
+            size: 1,
+        }
+    }
+    fn is_leaf(&self) -> bool {
+        self.black && self.height == 1
+    }
+    fn into_root(mut self) -> Self {
+        if !self.black {
+            self.black = true;
+            self.height += 1;
+        }
+        self
+    }
+}
+
 pub trait Node<T: Clone> {
     fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self>;
     fn new_leaf(val: T) -> Box<Self>;
@@ -262,42 +297,6 @@ pub trait Reverse<T: Clone>: Tree<T> {
     }
 }
 
-// 以下実装
-
-struct Base {
-    black: bool,
-    height: usize,
-    size: usize,
-}
-impl Base {
-    fn new(l: &Self, r: &Self, black: bool) -> Self {
-        assert_eq!(l.height, r.height);
-        assert!(l.black || black);
-        assert!(r.black || black);
-        Self {
-            black,
-            height: l.height + black as usize,
-            size: l.size + r.size,
-        }
-    }
-    fn new_leaf() -> Self {
-        Self {
-            black: true,
-            height: 1,
-            size: 1,
-        }
-    }
-    fn is_leaf(&self) -> bool {
-        self.black && self.height == 1
-    }
-    fn make_root(&mut self) {
-        if !self.black {
-            self.black = true;
-            self.height += 1;
-        }
-    }
-}
-
 macro_rules! impl_node {
     ($node:ident<$param:ident : $bound:tt>, $val:ty) => {
         impl<$param: $bound> Node<$val> for $node<$param> {
@@ -311,7 +310,7 @@ macro_rules! impl_node {
                 self.detach()
             }
             fn into_root(mut self: Box<Self>) -> Box<Self> {
-                self.base.make_root();
+                self.base = self.base.into_root();
                 self
             }
             fn black(&self) -> bool {
@@ -360,37 +359,6 @@ macro_rules! impl_tree {
     };
 }
 
-// begin RBTree
-pub struct RBNode<T> {
-    val: T,
-    base: Base,
-    l: Option<Box<Self>>,
-    r: Option<Box<Self>>,
-}
-impl<T: Clone> RBNode<T> {
-    fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
-        Box::new(Self {
-            val: r.val.clone(),
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
-        })
-    }
-    fn new_leaf(val: T) -> Box<Self> {
-        Box::new(Self {
-            val,
-            base: Base::new_leaf(),
-            l: None,
-            r: None,
-        })
-    }
-    fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
-        assert!(!self.base.is_leaf());
-        (self.l.unwrap(), self.r.unwrap())
-    }
-}
-impl_node!(RBNode<T: Clone>, T);
-
 /// 列を管理する平衡二分木.
 /// 挿入, 削除, 取得, 分割, 統合, lower_bound を O(log n) で行う.
 ///
@@ -421,6 +389,35 @@ impl_node!(RBNode<T: Clone>, T);
 pub struct RBTree<T> {
     root: Option<Box<RBNode<T>>>,
 }
+pub struct RBNode<T> {
+    val: T,
+    base: Base,
+    l: Option<Box<Self>>,
+    r: Option<Box<Self>>,
+}
+impl<T: Clone> RBNode<T> {
+    fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
+        Box::new(Self {
+            val: r.val.clone(),
+            base: Base::new(&l.base, &r.base, black),
+            l: Some(l),
+            r: Some(r),
+        })
+    }
+    fn new_leaf(val: T) -> Box<Self> {
+        Box::new(Self {
+            val,
+            base: Base::new_leaf(),
+            l: None,
+            r: None,
+        })
+    }
+    fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
+        assert!(!self.base.is_leaf());
+        (self.l.unwrap(), self.r.unwrap())
+    }
+}
+impl_node!(RBNode<T: Clone>, T);
 impl_tree!(RBTree<T: Clone>, RBNode<T>, T);
 impl<T: Clone + Ord> RBTree<T> {
     pub fn lower_bound(&self, val: T) -> usize {
@@ -443,9 +440,30 @@ impl<T: Clone + Ord> RBTree<T> {
         k + (p.val < val) as usize
     }
 }
-// end RBTree
 
-// begin RBSegtree
+/// モノイドが載る平衡二分木.
+/// 挿入, 削除, 区間取得, 分割, 統合を O(log n) で行う.
+///
+/// # Example
+/// ```
+/// use my_library_rs::*;
+///
+/// pub struct RangeSum;
+/// impl Monoid for RangeSum {
+///     type S = u32;
+///     fn identity() -> Self::S { 0 }
+///     fn binary_operation(a: &Self::S, b: &Self::S) -> Self::S { *a + *b }
+/// }
+///
+/// let mut seg: RBSegtree<RangeSum> = vec![1, 100, 0, 1000].into();
+/// assert_eq!(seg.remove(2), 0);  // [1, 100, 1000]
+/// seg.insert(1, 10);  // [1, 10, 100, 1000]
+///
+/// assert_eq!((seg.prod(0, 4), seg.prod(0, 3), seg.prod(1, 2)), (1111, 111, 10));
+/// ```
+pub struct RBSegtree<M: Monoid> {
+    root: Option<Box<MonoidRBNode<M>>>,
+}
 pub struct MonoidRBNode<M: Monoid> {
     val: M::S,
     base: Base,
@@ -474,71 +492,8 @@ impl<M: Monoid> MonoidRBNode<M> {
     }
 }
 impl_node!(MonoidRBNode<M: Monoid>, M::S);
-
-/// モノイドが載る平衡二分木.
-/// 挿入, 削除, 区間取得, 分割, 統合を O(log n) で行う.
-///
-/// # Example
-/// ```
-/// use my_library_rs::*;
-///
-/// pub struct RangeSum;
-/// impl Monoid for RangeSum {
-///     type S = u32;
-///     fn identity() -> Self::S { 0 }
-///     fn binary_operation(a: &Self::S, b: &Self::S) -> Self::S { *a + *b }
-/// }
-///
-/// let mut seg: RBSegtree<RangeSum> = vec![1, 100, 0, 1000].into();
-/// assert_eq!(seg.remove(2), 0);  // [1, 100, 1000]
-/// seg.insert(1, 10);  // [1, 10, 100, 1000]
-///
-/// assert_eq!((seg.prod(0, 4), seg.prod(0, 3), seg.prod(1, 2)), (1111, 111, 10));
-/// ```
-pub struct RBSegtree<M: Monoid> {
-    root: Option<Box<MonoidRBNode<M>>>,
-}
 impl_tree!(RBSegtree<M: Monoid>, MonoidRBNode<M>, M::S);
 impl<M: Monoid> RangeFold<M> for RBSegtree<M> {}
-// end RBSegtree
-
-// begin RBLazySegtree
-pub struct MapMonoidRBNode<F: MapMonoid> {
-    val: <F::M as Monoid>::S,
-    base: Base,
-    l: Option<Box<Self>>,
-    r: Option<Box<Self>>,
-    lazy: F::F,
-}
-impl<F: MapMonoid> MapMonoidRBNode<F> {
-    fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
-        Box::new(Self {
-            val: F::binary_operation(&l.val, &r.val),
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
-            lazy: F::identity_map(),
-        })
-    }
-    fn new_leaf(val: <F::M as Monoid>::S) -> Box<Self> {
-        Box::new(Self {
-            val,
-            base: Base::new_leaf(),
-            l: None,
-            r: None,
-            lazy: F::identity_map(),
-        })
-    }
-    fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
-        let (mut l, mut r) = (self.l.unwrap(), self.r.unwrap());
-        l.val = F::mapping(&self.lazy, &l.val);
-        r.val = F::mapping(&self.lazy, &r.val);
-        l.lazy = F::composition(&self.lazy, &l.lazy);
-        r.lazy = F::composition(&self.lazy, &r.lazy);
-        (l, r)
-    }
-}
-impl_node!(MapMonoidRBNode<F: MapMonoid>, <F::M as Monoid>::S);
 
 /// 作用素モノイドが載る平衡二分木.
 /// 挿入, 削除, 区間取得, 区間作用, 分割, 統合 を O(log n) で行う.
@@ -578,6 +533,42 @@ impl_node!(MapMonoidRBNode<F: MapMonoid>, <F::M as Monoid>::S);
 pub struct RBLazySegtree<F: MapMonoid> {
     root: Option<Box<MapMonoidRBNode<F>>>,
 }
+pub struct MapMonoidRBNode<F: MapMonoid> {
+    val: <F::M as Monoid>::S,
+    base: Base,
+    l: Option<Box<Self>>,
+    r: Option<Box<Self>>,
+    lazy: F::F,
+}
+impl<F: MapMonoid> MapMonoidRBNode<F> {
+    fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
+        Box::new(Self {
+            val: F::binary_operation(&l.val, &r.val),
+            base: Base::new(&l.base, &r.base, black),
+            l: Some(l),
+            r: Some(r),
+            lazy: F::identity_map(),
+        })
+    }
+    fn new_leaf(val: <F::M as Monoid>::S) -> Box<Self> {
+        Box::new(Self {
+            val,
+            base: Base::new_leaf(),
+            l: None,
+            r: None,
+            lazy: F::identity_map(),
+        })
+    }
+    fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
+        let (mut l, mut r) = (self.l.unwrap(), self.r.unwrap());
+        l.val = F::mapping(&self.lazy, &l.val);
+        r.val = F::mapping(&self.lazy, &r.val);
+        l.lazy = F::composition(&self.lazy, &l.lazy);
+        r.lazy = F::composition(&self.lazy, &r.lazy);
+        (l, r)
+    }
+}
+impl_node!(MapMonoidRBNode<F: MapMonoid>, <F::M as Monoid>::S);
 impl_tree!(
     RBLazySegtree<F: MapMonoid>,
     MapMonoidRBNode<F>,
@@ -590,9 +581,49 @@ impl<F: MapMonoid> LazyEval<F> for RBLazySegtree<F> {
         p.lazy = F::composition(&f, &p.lazy);
     }
 }
-// end RBLazySegtree
 
-// begin ReversibleRBLazySegtree
+/// 作用素モノイドが載る, 区間反転が可能な平衡二分木.
+/// 挿入, 削除, 区間取得, 区間作用, 分割, 統合, 区間反転 を O(log n) で行う.
+///
+/// # Example
+/// ```
+/// use my_library_rs::*;
+/// use std::cmp::min;
+///
+/// pub struct RangeMin;
+/// impl Monoid for RangeMin
+/// {
+///     type S = u32;
+///     fn identity() -> Self::S { Self::S::max_value() }
+///     fn binary_operation(&a: &Self::S, &b: &Self::S) -> Self::S { min(a, b) }
+/// }
+/// struct RangeAddRangeMin;
+/// impl MapMonoid for RangeAddRangeMin {
+///     type M = RangeMin;
+///     type F = u32;
+///
+///     fn identity_map() -> Self::F { 0 }
+///     fn mapping(&f: &Self::F, &a: &<Self::M as Monoid>::S) -> <Self::M as Monoid>::S { a + f }
+///     fn composition(&f: &Self::F, &g: &Self::F) -> Self::F { f + g }
+/// }
+///
+/// let mut seg: ReversibleRBLazySegtree<RangeAddRangeMin> = vec![1, 100, 0, 1000].into();
+/// assert_eq!(seg.remove(2), 0);  // [1, 100, 1000]
+/// seg.insert(1, 10);  // [1, 10, 100, 1000]
+///
+/// assert_eq!((seg.prod(0, 4), seg.prod(0, 3), seg.prod(1, 2)), (1, 1, 10));
+///
+/// seg.apply_range(2, 4, 20);  // [1, 10, 120, 1020]
+/// seg.apply_range(0, 3, 3000);   // [3001, 3010, 3120, 1020]
+/// assert_eq!((seg.get(0), seg.get(1), seg.get(2), seg.get(3)), (3001, 3010, 3120, 1020));
+///
+/// seg.reverse_range(1, 4); // [3001, 1020, 3120, 3010];
+/// seg.reverse_range(0, 2); // [1020, 3001, 3120, 3010];
+/// assert_eq!((seg.get(0), seg.get(1), seg.get(2), seg.get(3)), (1020, 3001, 3120, 3010));
+/// ```
+pub struct ReversibleRBLazySegtree<F: MapMonoid> {
+    root: Option<Box<ReversibleMapMonoidRBNode<F>>>,
+}
 pub struct ReversibleMapMonoidRBNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
     base: Base,
@@ -637,49 +668,6 @@ impl<F: MapMonoid> ReversibleMapMonoidRBNode<F> {
     }
 }
 impl_node!(ReversibleMapMonoidRBNode<F: MapMonoid>, <F::M as Monoid>::S);
-
-/// 作用素モノイドが載る, 区間反転が可能な平衡二分木.
-/// 挿入, 削除, 区間取得, 区間作用, 分割, 統合, 区間反転 を O(log n) で行う.
-///
-/// # Example
-/// ```
-/// use my_library_rs::*;
-/// use std::cmp::min;
-///
-/// pub struct RangeMin;
-/// impl Monoid for RangeMin
-/// {
-///     type S = u32;
-///     fn identity() -> Self::S { Self::S::max_value() }
-///     fn binary_operation(&a: &Self::S, &b: &Self::S) -> Self::S { min(a, b) }
-/// }
-/// struct RangeAddRangeMin;
-/// impl MapMonoid for RangeAddRangeMin {
-///     type M = RangeMin;
-///     type F = u32;
-///
-///     fn identity_map() -> Self::F { 0 }
-///     fn mapping(&f: &Self::F, &a: &<Self::M as Monoid>::S) -> <Self::M as Monoid>::S { a + f }
-///     fn composition(&f: &Self::F, &g: &Self::F) -> Self::F { f + g }
-/// }
-///
-/// let mut seg: ReversibleRBLazySegtree<RangeAddRangeMin> = vec![1, 100, 0, 1000].into();
-/// assert_eq!(seg.remove(2), 0);  // [1, 100, 1000]
-/// seg.insert(1, 10);  // [1, 10, 100, 1000]
-///
-/// assert_eq!((seg.prod(0, 4), seg.prod(0, 3), seg.prod(1, 2)), (1, 1, 10));
-///
-/// seg.apply_range(2, 4, 20);  // [1, 10, 120, 1020]
-/// seg.apply_range(0, 3, 3000);   // [3001, 3010, 3120, 1020]
-/// assert_eq!((seg.get(0), seg.get(1), seg.get(2), seg.get(3)), (3001, 3010, 3120, 1020));
-///
-/// seg.reverse_range(1, 4); // [3001, 1020, 3120, 3010];
-/// seg.reverse_range(0, 2); // [1020, 3001, 3120, 3010];
-/// assert_eq!((seg.get(0), seg.get(1), seg.get(2), seg.get(3)), (1020, 3001, 3120, 3010));
-/// ```
-pub struct ReversibleRBLazySegtree<F: MapMonoid> {
-    root: Option<Box<ReversibleMapMonoidRBNode<F>>>,
-}
 impl_tree!(
     ReversibleRBLazySegtree<F: MapMonoid>,
     ReversibleMapMonoidRBNode<F>,
@@ -697,4 +685,3 @@ impl<F: MapMonoid> Reverse<<F::M as Monoid>::S> for ReversibleRBLazySegtree<F> {
         p.rev ^= true;
     }
 }
-// end RBLazySegtree

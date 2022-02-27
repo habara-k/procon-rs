@@ -52,10 +52,7 @@ pub trait Node {
     fn val(&self) -> Self::Value;
 
     fn len(p: &Option<Self::Link>) -> usize {
-        if let Some(p) = p {
-            return p.size();
-        }
-        0
+        p.as_ref().map_or(0, |p| p.size())
     }
     fn merge(a: Option<Self::Link>, b: Option<Self::Link>) -> Option<Self::Link> {
         if a.is_none() {
@@ -401,6 +398,15 @@ macro_rules! impl_tree {
                 Self { root: None }
             }
         }
+        impl<$param: $bound> $tree<$param> {
+            pub fn collect_vec(&mut self) -> Vec<<<Self as Root>::Node as Node>::Value> {
+                let mut v = vec![];
+                for i in 0..self.len() {
+                    v.push(self.get(i));
+                }
+                v
+            }
+        }
     };
 }
 
@@ -421,15 +427,12 @@ macro_rules! impl_tree {
 ///
 /// let mut t: RBTree<u32> = Default::default();
 /// v.split(2, &mut t);  // [10, 30], [30, 40];
-/// assert_eq!(v.len(), 2);
-/// assert_eq!((v.get(0), v.get(1)), (10, 30));
-/// assert_eq!(t.len(), 2);
-/// assert_eq!((t.get(0), t.get(1)), (30, 40));
+/// assert_eq!(v.collect_vec(), vec![10, 30]);
+/// assert_eq!(t.collect_vec(), vec![30, 40]);
 ///
-/// t.merge(&mut v);  // [30, 40, 10, 20];
-/// assert_eq!(t.len(), 4);
-/// assert_eq!((t.get(0), t.get(1), t.get(2), t.get(3)), (30, 40, 10, 30));
-/// assert_eq!(v.len(), 0);
+/// t.merge(&mut v);  // [30, 40, 10, 30];
+/// assert_eq!(t.collect_vec(), vec![30, 40, 10, 30]);
+/// assert_eq!(v.collect_vec(), vec![]);
 /// ```
 pub struct RBTree<T> {
     root: Option<Box<RightNode<T>>>,
@@ -583,7 +586,7 @@ impl_node!(MonoidNode<M: Monoid>, M::S, Box<MonoidNode<M>>);
 ///
 /// seg.apply_range(2, 4, 20);  // [1, 10, 120, 1020]
 /// seg.apply_range(0, 3, 3000);   // [3001, 3010, 3120, 1020]
-/// assert_eq!((seg.get(0), seg.get(1), seg.get(2), seg.get(3)), (3001, 3010, 3120, 1020));
+/// assert_eq!(seg.collect_vec(), vec![3001, 3010, 3120, 1020]);
 /// ```
 pub struct RBLazySegtree<F: MapMonoid> {
     root: Option<Box<MapMonoidNode<F>>>,
@@ -667,11 +670,11 @@ impl_apply!(MapMonoidNode<F: MapMonoid>, F);
 ///
 /// seg.apply_range(2, 4, 20);  // [1, 10, 120, 1020]
 /// seg.apply_range(0, 3, 3000);   // [3001, 3010, 3120, 1020]
-/// assert_eq!((seg.get(0), seg.get(1), seg.get(2), seg.get(3)), (3001, 3010, 3120, 1020));
+/// assert_eq!(seg.collect_vec(), vec![3001, 3010, 3120, 1020]);
 ///
 /// seg.reverse_range(1, 4); // [3001, 1020, 3120, 3010];
 /// seg.reverse_range(0, 2); // [1020, 3001, 3120, 3010];
-/// assert_eq!((seg.get(0), seg.get(1), seg.get(2), seg.get(3)), (1020, 3001, 3120, 3010));
+/// assert_eq!(seg.collect_vec(), vec![1020, 3001, 3120, 3010]);
 /// ```
 pub struct ReversibleRBLazySegtree<F: MapMonoid> {
     root: Option<Box<ReversibleMapMonoidNode<F>>>,
@@ -735,11 +738,10 @@ impl_node!(ReversibleMapMonoidNode<F: MapMonoid>, <F::M as Monoid>::S, Box<Rever
 impl_apply!(ReversibleMapMonoidNode<F: MapMonoid>, F);
 impl_reverse!(ReversibleMapMonoidNode<F: MapMonoid>);
 
-// 以下永続
 use std::rc::Rc;
 
 /// 列を管理する永続平衡二分木.
-/// 挿入, 削除, 取得, 分割, 統合, lower_bound を O(log n) で行う.
+/// 挿入, 削除, 取得, 分割, 統合, lower_bound, clone を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -755,20 +757,16 @@ use std::rc::Rc;
 ///
 /// let mut t: PersistentRBTree<u32> = Default::default();
 /// v.split(2, &mut t);  // [10, 30], [30, 40];
-/// assert_eq!(v.len(), 2);
-/// assert_eq!((v.get(0), v.get(1)), (10, 30));
-/// assert_eq!(t.len(), 2);
-/// assert_eq!((t.get(0), t.get(1)), (30, 40));
+/// assert_eq!(v.collect_vec(), vec![10, 30]);
+/// assert_eq!(t.collect_vec(), vec![30, 40]);
 ///
-/// t.merge(&mut v);  // [30, 40, 10, 20];
-/// assert_eq!(t.len(), 4);
-/// assert_eq!((t.get(0), t.get(1), t.get(2), t.get(3)), (30, 40, 10, 30));
-/// assert_eq!(v.len(), 0);
+/// t.merge(&mut v);  // [30, 40, 10, 30];
+/// assert_eq!(t.collect_vec(), vec![30, 40, 10, 30]);
+/// assert_eq!(v.collect_vec(), vec![]);
 ///
 /// let mut s = t.clone();
-/// t.merge(&mut s);  // [30, 40, 10, 20, 30, 40, 10, 20]
-/// assert_eq!((t.get(0), t.get(1), t.get(2), t.get(3)), (30, 40, 10, 30));
-/// assert_eq!((t.get(4), t.get(5), t.get(6), t.get(7)), (30, 40, 10, 30));
+/// t.merge(&mut s);  // [30, 40, 10, 30, 30, 40, 10, 30]
+/// assert_eq!(t.collect_vec(), vec![30, 40, 10, 30, 30, 40, 10, 30]);
 /// ```
 #[derive(Clone)]
 pub struct PersistentRBTree<T> {

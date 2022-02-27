@@ -47,6 +47,7 @@ pub trait Node {
     fn detach(p: Self::Link) -> (Self::Link, Self::Link);
     fn make_root(p: Self::Link) -> Self::Link;
     fn black(&self) -> bool;
+    fn is_leaf(&self) -> bool;
     fn height(&self) -> usize;
     fn size(&self) -> usize;
     fn val(&self) -> Self::Value;
@@ -202,6 +203,18 @@ pub trait Node {
             Self::build(v, (l + r) / 2, r),
         )
     }
+    fn collect_vec(mut p: Self::Link, v: &mut Vec<Self::Value>) -> Self::Link {
+        if !p.is_leaf() {
+            let black = p.black();
+            let (mut l, mut r) = Self::detach(p);
+            l = Self::collect_vec(l, v);
+            r = Self::collect_vec(r, v);
+            p = Self::new(l, r, black);
+        } else {
+            v.push(p.val());
+        }
+        p
+    }
 }
 
 pub trait Root {
@@ -249,6 +262,15 @@ pub trait Tree: Root {
         let val = self.remove(k);
         self.insert(k, val.clone());
         val
+    }
+    fn collect_vec(&mut self) -> Vec<<Self::Node as Node>::Value> {
+        if self.len() == 0 {
+            return vec![];
+        }
+        let root = mem::replace(self.mut_root(), None).unwrap();
+        let mut v = vec![];
+        *self.mut_root() = Some(Self::Node::collect_vec(root, &mut v));
+        v
     }
 }
 
@@ -337,6 +359,9 @@ macro_rules! impl_node {
             fn black(&self) -> bool {
                 self.base.black
             }
+            fn is_leaf(&self) -> bool {
+                self.base.is_leaf()
+            }
             fn height(&self) -> usize {
                 self.base.height
             }
@@ -396,15 +421,6 @@ macro_rules! impl_tree {
         impl<$param: $bound> Default for $tree<$param> {
             fn default() -> Self {
                 Self { root: None }
-            }
-        }
-        impl<$param: $bound> $tree<$param> {
-            pub fn collect_vec(&mut self) -> Vec<<<Self as Root>::Node as Node>::Value> {
-                let mut v = vec![];
-                for i in 0..self.len() {
-                    v.push(self.get(i));
-                }
-                v
             }
         }
     };

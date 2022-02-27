@@ -2,38 +2,81 @@ use std::convert::From;
 use std::ops::{AddAssign, Div, Mul};
 
 /// 二項係数を計算する.
-/// NOTE: ACLibrary のModInt が渡されることを想定している.
-pub struct Combination<T> {
-    fac: Vec<T>,
-    inv: Vec<T>,
+/// NOTE: ACLibrary のModInt のような有限体が渡されることを想定している.
+/// # Example
+/// ```
+/// use my_library_rs::*;
+/// use std::ops::{Mul, Div};
+///
+/// const MOD: u64 = 1_000_000_007;
+/// fn pow(mut a: u64, mut n: u64) -> u64 {
+///     let mut r = 1;
+///     while n > 0 {
+///         if n & 1 == 1 {
+///             r *= a;
+///             r %= MOD;
+///         }
+///         a *= a;
+///         a %= MOD;
+///         n >>= 1;
+///     }
+///     r
+/// }
+/// #[derive(Copy, Clone)]
+/// struct ModInt {
+///     val: u64,
+/// }
+/// impl From<usize> for ModInt {
+///     fn from(val: usize) -> Self {
+///         Self { val: val as u64 }
+///     }
+/// }
+/// impl Mul for ModInt {
+///     type Output = Self;
+///     fn mul(self, rhs: Self) -> Self::Output {
+///         Self { val: ((self.val * rhs.val) % MOD) as u64 }
+///     }
+/// }
+/// impl Div for ModInt {
+///     type Output = Self;
+///     fn div(self, rhs: Self) -> Self::Output {
+///         self * Self { val: pow(rhs.val, MOD-2) }
+///     }
+/// }
+/// let fact = Factorial::<ModInt>::new(10);
+/// assert_eq!(fact.binom(10, 3).val, (10 * 9 * 8) / (3 * 2 * 1) as u64);
+/// ```
+pub struct Factorial<T> {
+    pub fact: Vec<T>,
+    pub finv: Vec<T>,
 }
 
-impl<T> Combination<T>
+impl<T> Factorial<T>
 where
     T: Copy + From<usize> + Mul<Output = T> + Div<Output = T>,
 {
     pub fn new(n: usize) -> Self {
-        let (mut fac, mut inv) = (Vec::with_capacity(n + 1), Vec::with_capacity(n + 1));
+        let (mut fact, mut finv) = (Vec::with_capacity(n + 1), Vec::with_capacity(n + 1));
 
-        fac.push(T::from(1));
+        fact.push(T::from(1));
         for i in 0..n {
-            fac.push(fac[i] * T::from(i + 1));
+            fact.push(fact[i] * T::from(i + 1));
         }
 
-        inv.push(T::from(1) / fac[n]);
+        finv.push(T::from(1) / fact[n]);
         for i in 0..n {
-            inv.push(inv[i] * T::from(n - i));
+            finv.push(finv[i] * T::from(n - i));
         }
-        inv.reverse();
+        finv.reverse();
 
-        Self { fac, inv }
+        Self { fact, finv }
     }
 
-    pub fn c(&self, n: usize, r: usize) -> T {
+    pub fn binom(&self, n: usize, r: usize) -> T {
         if n < r {
             return T::from(0);
         }
-        self.fac[n] * self.inv[r] * self.inv[n - r]
+        self.fact[n] * self.finv[r] * self.finv[n - r]
     }
 }
 

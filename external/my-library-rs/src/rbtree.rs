@@ -434,12 +434,12 @@ macro_rules! impl_tree {
 /// assert_eq!(t.collect_vec(), vec![30, 40, 10, 30]);
 /// assert_eq!(v.collect_vec(), vec![]);
 /// ```
-pub struct RBTree<T> {
-    root: Option<Box<RightNode<T>>>,
+pub struct RBTree<U> {
+    root: Option<Box<RightNode<U>>>,
 }
-impl_tree!(RBTree<T: Clone>, RightNode<T>);
-impl<T: Clone + Ord> RBTree<T> {
-    pub fn lower_bound(&self, val: T) -> usize {
+impl_tree!(RBTree<U: Clone>, RightNode<U>);
+impl<U: Clone + Ord> RBTree<U> {
+    pub fn lower_bound(&self, val: U) -> usize {
         if self.root().is_none() {
             return 0;
         }
@@ -460,13 +460,13 @@ impl<T: Clone + Ord> RBTree<T> {
     }
 }
 
-pub struct RightNode<T> {
-    val: T,
+pub struct RightNode<U> {
+    val: U,
     base: Base,
     l: Option<Box<Self>>,
     r: Option<Box<Self>>,
 }
-impl<T: Clone> RightNode<T> {
+impl<U: Clone> RightNode<U> {
     fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
         Box::new(Self {
             val: r.val.clone(),
@@ -475,7 +475,7 @@ impl<T: Clone> RightNode<T> {
             r: Some(r),
         })
     }
-    fn new_leaf(val: T) -> Box<Self> {
+    fn new_leaf(val: U) -> Box<Self> {
         Box::new(Self {
             val,
             base: Base::new_leaf(),
@@ -492,7 +492,7 @@ impl<T: Clone> RightNode<T> {
         p
     }
 }
-impl_node!(RightNode<T: Clone>, T, Box<RightNode<T>>);
+impl_node!(RightNode<U: Clone>, U, Box<RightNode<U>>);
 
 /// モノイドが載る平衡二分木.
 /// 挿入, 削除, 区間取得, 分割, 統合を O(log n) で行う.
@@ -769,12 +769,14 @@ use std::rc::Rc;
 /// assert_eq!(t.collect_vec(), vec![30, 40, 10, 30, 30, 40, 10, 30]);
 /// ```
 #[derive(Clone)]
-pub struct PersistentRBTree<T> {
-    root: Option<Rc<PersistentRightNode<T>>>,
+pub struct PersistentRBTree<U> {
+    root: Option<Rc<PersistentRightNode<U>>>,
 }
-impl_tree!(PersistentRBTree<T: Clone>, PersistentRightNode<T>);
-impl<T: Clone + Ord> PersistentRBTree<T> {
-    pub fn lower_bound(&self, val: T) -> usize {
+impl_tree!(PersistentRBTree<U: Clone>, PersistentRightNode<U>);
+
+// TODO: 再利用
+impl<U: Clone + Ord> PersistentRBTree<U> {
+    pub fn lower_bound(&self, val: U) -> usize {
         if self.root().is_none() {
             return 0;
         }
@@ -795,13 +797,13 @@ impl<T: Clone + Ord> PersistentRBTree<T> {
     }
 }
 
-pub struct PersistentRightNode<T> {
-    val: T,
+pub struct PersistentRightNode<U> {
+    val: U,
     base: Base,
     l: Option<Rc<Self>>,
     r: Option<Rc<Self>>,
 }
-impl<T: Clone> PersistentRightNode<T> {
+impl<U: Clone> PersistentRightNode<U> {
     fn new(l: Rc<Self>, r: Rc<Self>, black: bool) -> Rc<Self> {
         Rc::new(Self {
             val: r.val.clone(),
@@ -810,7 +812,7 @@ impl<T: Clone> PersistentRightNode<T> {
             r: Some(r),
         })
     }
-    fn new_leaf(val: T) -> Rc<Self> {
+    fn new_leaf(val: U) -> Rc<Self> {
         Rc::new(Self {
             val,
             base: Base::new_leaf(),
@@ -831,4 +833,4 @@ impl<T: Clone> PersistentRightNode<T> {
         })
     }
 }
-impl_node!(PersistentRightNode<T: Clone>, T, Rc<PersistentRightNode<T>>);
+impl_node!(PersistentRightNode<U: Clone>, U, Rc<PersistentRightNode<U>>);

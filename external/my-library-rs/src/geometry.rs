@@ -46,7 +46,7 @@ where
 /// ```
 pub fn convex_hull<T>(ps: &[Point<T>]) -> Vec<Point<T>>
 where
-    T: Copy + Ord + From<usize> + Sub<Output = T> + Mul<Output = T>,
+    T: Copy + Ord + From<i32> + Sub<Output = T> + Mul<Output = T>,
 {
     if ps.len() <= 1 {
         return ps.to_vec();

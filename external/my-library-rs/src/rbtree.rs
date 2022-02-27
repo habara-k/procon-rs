@@ -211,14 +211,17 @@ pub trait Root<T: Clone> {
 
 use std::mem;
 pub trait Tree<T: Clone>: Root<T> {
+    /// 要素数を返す.
     fn len(&self) -> usize {
         Self::Node::len(self.root())
     }
+    /// `k` 番目に `val` を挿入する.
     fn insert(&mut self, k: usize, val: T) {
         assert!(k <= self.len());
         let root = mem::replace(self.mut_root(), None);
         *self.mut_root() = Self::Node::insert(root, k, val);
     }
+    /// `k` 番目の要素を削除し, その値を返す.
     fn remove(&mut self, k: usize) -> T {
         assert!(k < self.len());
         let root = mem::replace(self.mut_root(), None);
@@ -226,16 +229,19 @@ pub trait Tree<T: Clone>: Root<T> {
         *self.mut_root() = root;
         val
     }
+    /// [0,n) => [0,k), [k,n)
     fn split(&mut self, k: usize, other: &mut Self) {
         let root = mem::replace(self.mut_root(), None);
         let (l, r) = Self::Node::split(root, k);
         *self.mut_root() = l;
         *other.mut_root() = r;
     }
+    /// [0,k), [k,n) => [0,n)
     fn merge(&mut self, other: &mut Self) {
         let root = mem::replace(self.mut_root(), None);
         *self.mut_root() = Self::Node::merge(root, mem::replace(other.mut_root(), None));
     }
+    /// `k` 番目の要素を返す.
     fn get(&mut self, k: usize) -> T {
         assert!(k < self.len());
         let val = self.remove(k);

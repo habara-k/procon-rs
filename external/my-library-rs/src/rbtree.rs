@@ -6,13 +6,11 @@ pub trait Node<T: Clone> {
     fn new_leaf(val: T) -> Box<Self>;
     fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>);
     fn as_root(p: Box<Self>) -> Box<Self>;
-
     fn black(&self) -> bool;
     fn height(&self) -> usize;
     fn size(&self) -> usize;
     fn val(&self) -> T;
 
-    // 以下自動実装
     fn len(p: &Option<Box<Self>>) -> usize {
         if let Some(p) = p {
             return p.size();
@@ -144,7 +142,6 @@ pub trait Node<T: Clone> {
         }
         (Some(Self::as_root(l)), Some(Self::as_root(r)))
     }
-
     fn insert(p: Option<Box<Self>>, k: usize, val: T) -> Option<Box<Self>> {
         assert!(k <= Self::len(&p));
         let (a, b) = Self::split(p, k);
@@ -155,8 +152,6 @@ pub trait Node<T: Clone> {
         let (a, b, c) = Self::split_range(p, k, k + 1);
         (Self::merge(a, c), b.unwrap().val())
     }
-
-    // Constructors
     fn build(v: &[T], l: usize, r: usize) -> Option<Box<Self>> {
         assert!(l <= r && r <= v.len());
         if l == r {
@@ -172,14 +167,15 @@ pub trait Node<T: Clone> {
     }
 }
 
-use std::mem;
-pub trait Tree<T: Clone> {
+pub trait Root<T: Clone> {
     type Node: Node<T>;
     fn root(&self) -> &Option<Box<Self::Node>>;
     fn mut_root(&mut self) -> &mut Option<Box<Self::Node>>;
     fn new(root: Option<Box<Self::Node>>) -> Self;
+}
 
-    // 以下自動実装
+use std::mem;
+pub trait Tree<T: Clone>: Root<T> {
     fn len(&self) -> usize {
         Self::Node::len(self.root())
     }
@@ -215,7 +211,6 @@ pub trait Tree<T: Clone> {
 
 pub use crate::algebra::Monoid;
 pub trait RangeFold<M: Monoid>: Tree<M::S> {
-    // 以下自動実装
     fn prod(&mut self, l: usize, r: usize) -> M::S {
         assert!(l <= r && r <= self.len());
         if l == r {
@@ -236,7 +231,6 @@ pub use crate::algebra::MapMonoid;
 pub trait LazyEval<F: MapMonoid>: Tree<<F::M as Monoid>::S> {
     fn apply(p: &mut Box<Self::Node>, f: F::F);
 
-    // 以下自動実装
     fn apply_range(&mut self, l: usize, r: usize, f: F::F) {
         assert!(l <= r && r <= self.len());
         if l == r {
@@ -254,7 +248,6 @@ pub trait LazyEval<F: MapMonoid>: Tree<<F::M as Monoid>::S> {
 pub trait Reverse<T: Clone>: Tree<T> {
     fn reverse(p: &mut Box<Self::Node>);
 
-    // 以下自動実装
     fn reverse_range(&mut self, l: usize, r: usize) {
         assert!(l <= r && r <= self.len());
         if l == r {
@@ -271,34 +264,20 @@ pub trait Reverse<T: Clone>: Tree<T> {
 
 // 以下実装
 
-struct Base<Node> {
-    l: Option<Box<Node>>,
-    r: Option<Box<Node>>,
+struct Base {
     black: bool,
     height: usize,
     size: usize,
 }
-impl<Node> Base<Node> {
-    fn new(
-        black: bool,
-        l_black: bool,
-        r_black: bool,
-        l_height: usize,
-        r_height: usize,
-        l_size: usize,
-        r_size: usize,
-        l: Box<Node>,
-        r: Box<Node>,
-    ) -> Self {
-        assert_eq!(l_height, r_height);
-        assert!(l_black || black);
-        assert!(r_black || black);
+impl Base {
+    fn new(l: &Self, r: &Self, black: bool) -> Self {
+        assert_eq!(l.height, r.height);
+        assert!(l.black || black);
+        assert!(r.black || black);
         Self {
             black,
-            height: l_height + black as usize,
-            size: l_size + r_size,
-            l: Some(l),
-            r: Some(r),
+            height: l.height + black as usize,
+            size: l.size + r.size,
         }
     }
     fn new_leaf() -> Self {
@@ -306,18 +285,12 @@ impl<Node> Base<Node> {
             black: true,
             height: 1,
             size: 1,
-            l: None,
-            r: None,
         }
-    }
-    fn detach(self) -> (Box<Node>, Box<Node>) {
-        assert!(!self.is_leaf());
-        (self.l.unwrap(), self.r.unwrap())
     }
     fn is_leaf(&self) -> bool {
         self.black && self.height == 1
     }
-    fn as_root(&mut self) {
+    fn make_root(&mut self) {
         if !self.black {
             self.black = true;
             self.height += 1;
@@ -337,11 +310,10 @@ macro_rules! impl_node {
             fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
                 Self::detach(p)
             }
-            fn as_root(p: Box<Self>) -> Box<Self> {
-                Self::as_root(p)
+            fn as_root(mut p: Box<Self>) -> Box<Self> {
+                p.base.make_root();
+                p
             }
-
-            // Accessors
             fn black(&self) -> bool {
                 self.base.black
             }
@@ -360,7 +332,7 @@ macro_rules! impl_node {
 
 macro_rules! impl_tree {
     ($tree:ident<$param:ident : $bound:tt>, $node:ty, $val:ty) => {
-        impl<$param: $bound> Tree<$val> for $tree<$param> {
+        impl<$param: $bound> Root<$val> for $tree<$param> {
             type Node = $node;
             fn root(&self) -> &Option<Box<Self::Node>> {
                 &self.root
@@ -372,10 +344,11 @@ macro_rules! impl_tree {
                 Self { root }
             }
         }
+        impl<$param: $bound> Tree<$val> for $tree<$param> {}
         impl<$param: $bound> From<Vec<$val>> for $tree<$param> {
             fn from(v: Vec<$val>) -> Self {
                 Self {
-                    root: <Self as Tree<$val>>::Node::build(&v, 0, v.len()),
+                    root: <Self as Root<$val>>::Node::build(&v, 0, v.len()),
                 }
             }
         }
@@ -389,38 +362,31 @@ macro_rules! impl_tree {
 
 // begin RBTree
 pub struct RBNode<T> {
-    base: Base<Self>,
     val: T,
+    base: Base,
+    l: Option<Box<Self>>,
+    r: Option<Box<Self>>,
 }
 impl<T: Clone> RBNode<T> {
     fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
         Box::new(Self {
             val: r.val.clone(),
-            base: <Base<Self>>::new(
-                black,
-                l.base.black,
-                r.base.black,
-                l.base.height,
-                r.base.height,
-                l.base.size,
-                r.base.size,
-                l,
-                r,
-            ),
+            base: Base::new(&l.base, &r.base, black),
+            l: Some(l),
+            r: Some(r),
         })
     }
     fn new_leaf(val: T) -> Box<Self> {
         Box::new(Self {
-            base: <Base<Self>>::new_leaf(),
             val,
+            base: Base::new_leaf(),
+            l: None,
+            r: None,
         })
     }
     fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
-        p.base.detach()
-    }
-    fn as_root(mut p: Box<Self>) -> Box<Self> {
-        p.base.as_root();
-        p
+        assert!(!p.base.is_leaf());
+        (p.l.unwrap(), p.r.unwrap())
     }
 }
 impl_node!(RBNode<T: Clone>, T);
@@ -461,38 +427,30 @@ impl_tree!(RBTree<T: Clone>, RBNode<T>, T);
 
 // begin RBSegtree
 pub struct MonoidRBNode<M: Monoid> {
-    base: Base<Self>,
     val: M::S,
+    base: Base,
+    l: Option<Box<Self>>,
+    r: Option<Box<Self>>,
 }
 impl<M: Monoid> MonoidRBNode<M> {
     fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
         Box::new(Self {
             val: M::binary_operation(&l.val, &r.val),
-            base: <Base<Self>>::new(
-                black,
-                l.base.black,
-                r.base.black,
-                l.base.height,
-                r.base.height,
-                l.base.size,
-                r.base.size,
-                l,
-                r,
-            ),
+            base: Base::new(&l.base, &r.base, black),
+            l: Some(l),
+            r: Some(r),
         })
     }
     fn new_leaf(val: M::S) -> Box<Self> {
         Box::new(Self {
-            base: <Base<Self>>::new_leaf(),
             val,
+            base: Base::new_leaf(),
+            l: None,
+            r: None,
         })
     }
     fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
-        p.base.detach()
-    }
-    fn as_root(mut p: Box<Self>) -> Box<Self> {
-        p.base.as_root();
-        p
+        (p.l.unwrap(), p.r.unwrap())
     }
 }
 impl_node!(MonoidRBNode<M: Monoid>, M::S);
@@ -526,46 +484,38 @@ impl<M: Monoid> RangeFold<M> for RBSegtree<M> {}
 
 // begin RBLazySegtree
 pub struct MapMonoidRBNode<F: MapMonoid> {
-    base: Base<Self>,
     val: <F::M as Monoid>::S,
+    base: Base,
+    l: Option<Box<Self>>,
+    r: Option<Box<Self>>,
     lazy: F::F,
 }
 impl<F: MapMonoid> MapMonoidRBNode<F> {
     fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
         Box::new(Self {
             val: F::binary_operation(&l.val, &r.val),
+            base: Base::new(&l.base, &r.base, black),
+            l: Some(l),
+            r: Some(r),
             lazy: F::identity_map(),
-            base: <Base<Self>>::new(
-                black,
-                l.base.black,
-                r.base.black,
-                l.base.height,
-                r.base.height,
-                l.base.size,
-                r.base.size,
-                l,
-                r,
-            ),
         })
     }
     fn new_leaf(val: <F::M as Monoid>::S) -> Box<Self> {
         Box::new(Self {
-            base: <Base<Self>>::new_leaf(),
             val,
+            base: Base::new_leaf(),
+            l: None,
+            r: None,
             lazy: F::identity_map(),
         })
     }
     fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
-        let (mut l, mut r) = p.base.detach();
+        let (mut l, mut r) = (p.l.unwrap(), p.r.unwrap());
         l.val = F::mapping(&p.lazy, &l.val);
         r.val = F::mapping(&p.lazy, &r.val);
         l.lazy = F::composition(&p.lazy, &l.lazy);
         r.lazy = F::composition(&p.lazy, &r.lazy);
         (l, r)
-    }
-    fn as_root(mut p: Box<Self>) -> Box<Self> {
-        p.base.as_root();
-        p
     }
 }
 impl_node!(MapMonoidRBNode<F: MapMonoid>, <F::M as Monoid>::S);
@@ -624,8 +574,10 @@ impl<F: MapMonoid> LazyEval<F> for RBLazySegtree<F> {
 
 // begin ReversibleRBLazySegtree
 pub struct ReversibleMapMonoidRBNode<F: MapMonoid> {
-    base: Base<Self>,
     val: <F::M as Monoid>::S,
+    base: Base,
+    l: Option<Box<Self>>,
+    r: Option<Box<Self>>,
     lazy: F::F,
     rev: bool,
 }
@@ -633,31 +585,25 @@ impl<F: MapMonoid> ReversibleMapMonoidRBNode<F> {
     fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
         Box::new(Self {
             val: F::binary_operation(&l.val, &r.val),
+            base: Base::new(&l.base, &r.base, black),
+            l: Some(l),
+            r: Some(r),
             lazy: F::identity_map(),
             rev: false,
-            base: <Base<Self>>::new(
-                black,
-                l.base.black,
-                r.base.black,
-                l.base.height,
-                r.base.height,
-                l.base.size,
-                r.base.size,
-                l,
-                r,
-            ),
         })
     }
     fn new_leaf(val: <F::M as Monoid>::S) -> Box<Self> {
         Box::new(Self {
-            base: <Base<Self>>::new_leaf(),
             val,
+            base: Base::new_leaf(),
+            l: None,
+            r: None,
             lazy: F::identity_map(),
             rev: false,
         })
     }
     fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
-        let (mut l, mut r) = p.base.detach();
+        let (mut l, mut r) = (p.l.unwrap(), p.r.unwrap());
         l.val = F::mapping(&p.lazy, &l.val);
         r.val = F::mapping(&p.lazy, &r.val);
         l.lazy = F::composition(&p.lazy, &l.lazy);
@@ -668,10 +614,6 @@ impl<F: MapMonoid> ReversibleMapMonoidRBNode<F> {
             return (r, l);
         }
         (l, r)
-    }
-    fn as_root(mut p: Box<Self>) -> Box<Self> {
-        p.base.as_root();
-        p
     }
 }
 impl_node!(ReversibleMapMonoidRBNode<F: MapMonoid>, <F::M as Monoid>::S);

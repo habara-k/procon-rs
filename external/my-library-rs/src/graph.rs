@@ -1,6 +1,6 @@
-use num::{Bounded, Zero};
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::ops::Add;
 
 #[derive(Clone)]
 pub struct Edge<T> {
@@ -8,12 +8,12 @@ pub struct Edge<T> {
     pub cost: T,
 }
 
-pub fn dijkstra<T>(graph: &[Vec<Edge<T>>], s: usize) -> Vec<T>
+pub fn dijkstra<T>(graph: &[Vec<Edge<T>>], s: usize, max: T) -> Vec<T>
 where
-    T: Copy + Bounded + Zero + Ord,
+    T: Copy + From<usize> + Ord + Add<Output = T>,
 {
-    let mut dist = vec![T::max_value(); graph.len()];
-    dist[s] = Zero::zero();
+    let mut dist = vec![max; graph.len()];
+    dist[s] = T::from(0);
 
     let mut heap = BinaryHeap::new();
     heap.push((Reverse(dist[s]), s));

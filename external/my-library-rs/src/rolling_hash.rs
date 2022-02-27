@@ -1,7 +1,5 @@
-use lazy_static::lazy_static;
-use num::ToPrimitive;
-use rand::distributions::{Distribution, Uniform};
-use std::marker::PhantomData;
+use std::cell::RefCell;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Rolling Hash
 /// - 法: 2^61 - 1
@@ -22,28 +20,24 @@ use std::marker::PhantomData;
 /// assert_eq!(hash.get(1, 5), hash.get(7, 11));  // [1,4,2,8] == [1,4,2,8]
 /// assert_ne!(hash.get(0, 5), hash.get(7, 11));  // [3,1,4,2] != [1,4,2,8]
 /// ```
-pub struct RollingHash<T> {
+pub struct RollingHash {
     hash: Vec<u64>,
     pow: Vec<u64>,
-    _marker: PhantomData<fn() -> T>,
 }
-impl<T: Copy + ToPrimitive> RollingHash<T> {
-    pub fn new(s: &[T]) -> Self {
+impl RollingHash {
+    pub fn new(s: &[u8]) -> Self {
         let n = s.len();
         let (mut hash, mut pow) = (Vec::with_capacity(n + 1), Vec::with_capacity(n + 1));
         hash.push(0);
         pow.push(1);
-        for i in 0..n {
-            hash.push(modulo(
-                mul(hash[i], *ROLLINGHASH_BASE) + s[i].to_u64().unwrap(),
-            ));
-            pow.push(mul(pow[i], *ROLLINGHASH_BASE));
-        }
-        Self {
-            hash,
-            pow,
-            _marker: PhantomData,
-        }
+        ROLLINGHASH_BASE.with(|b| {
+            let base = *b.borrow();
+            for i in 0..n {
+                hash.push(modulo(mul(hash[i], base) + s[i] as u64));
+                pow.push(mul(pow[i], base));
+            }
+        });
+        Self { hash, pow }
     }
     pub fn get(&self, l: usize, r: usize) -> u64 {
         modulo(self.hash[r] + MOD - mul(self.hash[l], self.pow[r - l]))
@@ -65,9 +59,11 @@ fn modulo(x: u64) -> u64 {
     }
 }
 
-lazy_static! {
-    static ref ROLLINGHASH_BASE: u64 = {
-        let mut rng = rand::thread_rng();
-        Uniform::from(0..MOD).sample(&mut rng)
-    };
-}
+thread_local!(static ROLLINGHASH_BASE: RefCell<u64> = {
+    let t = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let t = (t >> 61) + (t & MOD as u128);
+    RefCell::new(modulo(t as u64))
+});

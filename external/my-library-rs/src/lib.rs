@@ -13,7 +13,7 @@ pub use graph::{dijkstra, Edge};
 pub use math::{subset_zeta_transform, Factorial};
 pub use rbtree::{
     RBLazySegtree, RBSegtree, RBTree, RangeApply, RangeFold, RangeReverse, ReversibleRBLazySegtree,
-    Tree,
+    Tree, PersistentRBTree,
 };
 pub use rolling_hash::RollingHash;
 pub use tree::HLD;

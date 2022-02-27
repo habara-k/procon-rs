@@ -37,15 +37,15 @@ impl Base {
 }
 
 pub trait Node {
-    type Item: Clone;
+    type Value: Clone;
     fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self>;
-    fn new_leaf(val: Self::Item) -> Box<Self>;
+    fn new_leaf(val: Self::Value) -> Box<Self>;
     fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>);
     fn into_root(self: Box<Self>) -> Box<Self>;
     fn black(&self) -> bool;
     fn height(&self) -> usize;
     fn size(&self) -> usize;
-    fn val(&self) -> Self::Item;
+    fn val(&self) -> Self::Value;
 
     fn len(p: &Option<Box<Self>>) -> usize {
         if let Some(p) = p {
@@ -178,17 +178,17 @@ pub trait Node {
         }
         (Some(l.into_root()), Some(r.into_root()))
     }
-    fn insert(p: Option<Box<Self>>, k: usize, val: Self::Item) -> Option<Box<Self>> {
+    fn insert(p: Option<Box<Self>>, k: usize, val: Self::Value) -> Option<Box<Self>> {
         assert!(k <= Self::len(&p));
         let (a, b) = Self::split(p, k);
         Self::merge(Self::merge(a, Some(Self::new_leaf(val))), b)
     }
-    fn remove(p: Option<Box<Self>>, k: usize) -> (Option<Box<Self>>, Self::Item) {
+    fn remove(p: Option<Box<Self>>, k: usize) -> (Option<Box<Self>>, Self::Value) {
         assert!(k < Self::len(&p));
         let (a, b, c) = Self::split_range(p, k, k + 1);
         (Self::merge(a, c), b.unwrap().val())
     }
-    fn build(v: &[Self::Item], l: usize, r: usize) -> Option<Box<Self>> {
+    fn build(v: &[Self::Value], l: usize, r: usize) -> Option<Box<Self>> {
         assert!(l <= r && r <= v.len());
         if l == r {
             return None;
@@ -217,13 +217,13 @@ pub trait Tree: Root {
         Self::Node::len(self.root())
     }
     /// `k` 番目に `val` を挿入する.
-    fn insert(&mut self, k: usize, val: <Self::Node as Node>::Item) {
+    fn insert(&mut self, k: usize, val: <Self::Node as Node>::Value) {
         assert!(k <= self.len());
         let root = mem::replace(self.mut_root(), None);
         *self.mut_root() = Self::Node::insert(root, k, val);
     }
     /// `k` 番目の要素を削除し, その値を返す.
-    fn remove(&mut self, k: usize) -> <Self::Node as Node>::Item {
+    fn remove(&mut self, k: usize) -> <Self::Node as Node>::Value {
         assert!(k < self.len());
         let root = mem::replace(self.mut_root(), None);
         let (root, val) = Self::Node::remove(root, k);
@@ -243,7 +243,7 @@ pub trait Tree: Root {
         *self.mut_root() = Self::Node::merge(root, mem::replace(other.mut_root(), None));
     }
     /// `k` 番目の要素を返す.
-    fn get(&mut self, k: usize) -> <Self::Node as Node>::Item {
+    fn get(&mut self, k: usize) -> <Self::Node as Node>::Value {
         assert!(k < self.len());
         let val = self.remove(k);
         self.insert(k, val.clone());
@@ -255,7 +255,7 @@ pub use crate::algebra::Monoid;
 pub trait RangeFold<M, T>: Tree<Node = T>
 where
     M: Monoid,
-    T: Node<Item = M::S>,
+    T: Node<Value = M::S>,
 {
     fn prod(&mut self, l: usize, r: usize) -> M::S {
         assert!(l <= r && r <= self.len());
@@ -281,7 +281,7 @@ pub trait Apply<F: MapMonoid> {
 pub trait RangeApply<F, T>: Tree<Node = T>
 where
     F: MapMonoid,
-    T: Apply<F> + Node<Item = <F::M as Monoid>::S>,
+    T: Apply<F> + Node<Value = <F::M as Monoid>::S>,
 {
     fn apply_range(&mut self, l: usize, r: usize, f: F::F) {
         assert!(l <= r && r <= self.len());
@@ -318,11 +318,11 @@ pub trait RangeReverse<T: Reverse + Node>: Tree<Node = T> {
 macro_rules! impl_node {
     ($node:ident<$param:ident : $bound:tt>, $val:ty) => {
         impl<$param: $bound> Node for $node<$param> {
-            type Item = $val;
+            type Value = $val;
             fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
                 Self::new(l, r, black)
             }
-            fn new_leaf(val: Self::Item) -> Box<Self> {
+            fn new_leaf(val: Self::Value) -> Box<Self> {
                 Self::new_leaf(val)
             }
             fn detach(self: Box<Self>) -> (Box<Self>, Box<Self>) {
@@ -341,7 +341,7 @@ macro_rules! impl_node {
             fn size(&self) -> usize {
                 self.base.size
             }
-            fn val(&self) -> Self::Item {
+            fn val(&self) -> Self::Value {
                 self.val.clone()
             }
         }
@@ -384,8 +384,8 @@ macro_rules! impl_tree {
             }
         }
         impl<$param: $bound> Tree for $tree<$param> {}
-        impl<$param: $bound> From<Vec<<$node as Node>::Item>> for $tree<$param> {
-            fn from(v: Vec<<$node as Node>::Item>) -> Self {
+        impl<$param: $bound> From<Vec<<$node as Node>::Value>> for $tree<$param> {
+            fn from(v: Vec<<$node as Node>::Value>) -> Self {
                 Self {
                     root: <Self as Root>::Node::build(&v, 0, v.len()),
                 }

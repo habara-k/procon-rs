@@ -736,7 +736,7 @@ impl_reverse!(ReversibleMapMonoidNode<F: MapMonoid>);
 use std::rc::Rc;
 
 /// 列を管理する永続平衡二分木.
-/// 挿入, 削除, 取得, 分割, 統合, lower_bound, clone を O(log n) で行う.
+/// 挿入, 削除, 取得, 分割, 統合, clone を O(log n) で行う.
 ///
 /// # Example
 /// ```

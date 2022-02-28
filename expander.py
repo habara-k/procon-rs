@@ -41,7 +41,7 @@ def using_deps():
 
         with open(args.tgt) as file:
             for line in file:
-                m = re.match("^use (.*)::\*;$", line)
+                m = re.match("^use (.*)::.*;$", line)
                 if m is None:
                     continue
                 dep = m.groups()[0]

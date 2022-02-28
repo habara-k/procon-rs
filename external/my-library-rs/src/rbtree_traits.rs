@@ -20,8 +20,8 @@ impl Base {
     }
     pub fn new_leaf() -> Self {
         Self {
-            black: true,
-            height: 1,
+            black: false,
+            height: 0,
             size: 1,
         }
     }
@@ -159,16 +159,6 @@ pub trait Node {
         //   a(BLACK,h)  b(BLACK,h)
         Self::new(a, b, RED)
     }
-    fn split_range(
-        p: Option<Self::Link>,
-        l: usize,
-        r: usize,
-    ) -> (Option<Self::Link>, Option<Self::Link>, Option<Self::Link>) {
-        assert!(l <= r && r <= Self::len(&p));
-        let (p, c) = Self::split(p, r);
-        let (a, b) = Self::split(p, l);
-        (a, b, c)
-    }
     fn split(p: Option<Self::Link>, k: usize) -> (Option<Self::Link>, Option<Self::Link>) {
         assert!(k <= Self::len(&p));
         if k == 0 {
@@ -187,6 +177,16 @@ pub trait Node {
             return (Self::merge(Some(l), a), b);
         }
         (Some(l), Some(r))
+    }
+    fn split_range(
+        p: Option<Self::Link>,
+        l: usize,
+        r: usize,
+    ) -> (Option<Self::Link>, Option<Self::Link>, Option<Self::Link>) {
+        assert!(l <= r && r <= Self::len(&p));
+        let (p, c) = Self::split(p, r);
+        let (a, b) = Self::split(p, l);
+        (a, b, c)
     }
     fn insert(p: Option<Self::Link>, k: usize, val: Self::Value) -> Option<Self::Link> {
         assert!(k <= Self::len(&p));
@@ -252,15 +252,18 @@ pub trait Tree: Root + Sized {
         val
     }
     /// [0,n) => [0,k), [k,n)
-    fn split(&mut self, k: usize) -> Self
-    where
-        Self: Sized,
-    {
+    fn split(mut self, k: usize) -> (Self, Self) {
         assert!(k <= self.len());
         let root = mem::replace(self.root(), None);
         let (l, r) = Self::Node::split(root, k);
-        *self.root() = l;
-        Self::new(r)
+        (Self::new(l), Self::new(r))
+    }
+    /// [0,n) => [0,l), [l,r), [r,n)
+    fn split_range(mut self, l: usize, r: usize) -> (Self, Self, Self) {
+        assert!(l <= r && r <= self.len());
+        let root = mem::replace(self.root(), None);
+        let (a, b, c) = Self::Node::split_range(root, l, r);
+        (Self::new(a), Self::new(b), Self::new(c))
     }
     /// [0,k), [k,n) => [0,n)
     fn merge(&mut self, other: &mut Self) {

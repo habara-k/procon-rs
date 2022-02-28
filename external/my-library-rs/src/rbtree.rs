@@ -119,7 +119,7 @@ macro_rules! impl_range_reverse {
 /// assert_eq!(v.len(), 4);
 /// assert_eq!((v.get(0), v.get(1), v.get(2), v.get(3)), (10, 30, 30, 40));
 ///
-/// let mut t = v.split(2);  // [10, 30], [30, 40];
+/// let (mut v, mut t) = v.split(2);  // [10, 30], [30, 40];
 /// assert_eq!(v.collect_vec(), vec![10, 30]);
 /// assert_eq!(t.collect_vec(), vec![30, 40]);
 ///
@@ -491,7 +491,7 @@ use std::rc::Rc;
 /// assert_eq!(v.len(), 4);
 /// assert_eq!((v.get(0), v.get(1), v.get(2), v.get(3)), (10, 30, 30, 40));
 ///
-/// let mut t = v.split(2);  // [10, 30], [30, 40];
+/// let (mut v, mut t) = v.split(2);  // [10, 30], [30, 40];
 /// assert_eq!(v.collect_vec(), vec![10, 30]);
 /// assert_eq!(t.collect_vec(), vec![30, 40]);
 ///

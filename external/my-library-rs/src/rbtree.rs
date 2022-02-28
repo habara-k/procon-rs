@@ -63,8 +63,7 @@ pub trait Node {
             return a;
         }
         let (a, b) = (a.unwrap(), b.unwrap());
-        assert!(a.black() && b.black());
-        Some(Self::make_root(Self::merge_sub(a, b)))
+        Some(Self::merge_sub(Self::make_root(a), Self::make_root(b)))
     }
     fn merge_sub(a: Self::Link, b: Self::Link) -> Self::Link {
         // # Require
@@ -172,13 +171,13 @@ pub trait Node {
         let (l, r) = Self::detach(p.unwrap());
         if k < l.size() {
             let (a, b) = Self::split(Some(l), k);
-            return (a, Self::merge(b, Some(Self::make_root(r))));
+            return (a, Self::merge(b, Some(r)));
         }
         if k > l.size() {
             let (a, b) = Self::split(Some(r), k - l.size());
-            return (Self::merge(Some(Self::make_root(l)), a), b);
+            return (Self::merge(Some(l), a), b);
         }
-        (Some(Self::make_root(l)), Some(Self::make_root(r)))
+        (Some(l), Some(r))
     }
     fn insert(p: Option<Self::Link>, k: usize, val: Self::Value) -> Option<Self::Link> {
         assert!(k <= Self::len(&p));
@@ -315,7 +314,6 @@ where
         let (a, mut b, c) = Self::Node::split_range(root, l, r);
 
         b = Some(T::apply(b.unwrap(), f));
-        //b = Some(Self::apply(b.uwnrap()));
 
         *self.mut_root() = Self::Node::merge(Self::Node::merge(a, b), c);
     }
@@ -339,23 +337,34 @@ pub trait RangeReverse<T: Reverse>: Tree<Node = T> {
     }
 }
 
-//$($ty:tt)*
 macro_rules! impl_node {
-    ($node:ty, $val:ty, $link:ty where $param:ident : $($bound:tt)*) => {
-        impl<$param: $($bound)*> Node for $node {
-            type Value = $val;
-            type Link = $link;
-            fn new(l: Self::Link, r: Self::Link, black: bool) -> Self::Link {
-                Self::new(l, r, black)
+    (
+        $node:ty where [$($params:tt)*];
+        val = $val_type:ty;
+        link = $link_type:ty;
+        new($l:ident, $r:ident, $black:ident) = $new:block;
+        new_leaf($new_val:ident) = $new_leaf:block;
+        detach($p1:ident) = $detach:block;
+        make_root($p2:ident) = $make_root:block;
+        val(&$self:ident) = $get_val:block;
+    ) => {
+        impl<$($params)*> Node for $node {
+            type Value = $val_type;
+            type Link = $link_type;
+            fn new($l: Self::Link, $r: Self::Link, $black: bool) -> Self::Link {
+                $new
             }
-            fn new_leaf(val: Self::Value) -> Self::Link {
-                Self::new_leaf(val)
+            fn new_leaf($new_val: Self::Value) -> Self::Link {
+                $new_leaf
             }
-            fn detach(p: Self::Link) -> (Self::Link, Self::Link) {
-                Self::detach(p)
+            fn detach($p1: Self::Link) -> (Self::Link, Self::Link) {
+                $detach
             }
-            fn make_root(p: Self::Link) -> Self::Link {
-                Self::make_root(p)
+            fn make_root($p2: Self::Link) -> Self::Link {
+                $make_root
+            }
+            fn val(&$self) -> Self::Value {
+                $get_val
             }
             fn black(&self) -> bool {
                 self.base.black
@@ -368,9 +377,6 @@ macro_rules! impl_node {
             }
             fn size(&self) -> usize {
                 self.base.size
-            }
-            fn val(&self) -> Self::Value {
-                self.val.clone()
             }
         }
     };
@@ -398,8 +404,11 @@ macro_rules! impl_reverse {
 }
 
 macro_rules! impl_tree {
-    ($tree:ty, $node:ty where $param:ident : $($bound:tt)*) => {
-        impl<$param: $($bound)*> Root for $tree {
+    (
+        $tree:ty where [$($params:tt)*];
+        node = $node:ty;
+    ) => {
+        impl<$($params)*> Root for $tree {
             type Node = $node;
             fn root(&self) -> &Option<<Self::Node as Node>::Link> {
                 &self.root
@@ -411,15 +420,15 @@ macro_rules! impl_tree {
                 Self { root }
             }
         }
-        impl<$param: $($bound)*> Tree for $tree {}
-        impl<$param: $($bound)*> From<Vec<<$node as Node>::Value>> for $tree {
+        impl<$($params)*> Tree for $tree {}
+        impl<$($params)*> From<Vec<<$node as Node>::Value>> for $tree {
             fn from(v: Vec<<$node as Node>::Value>) -> Self {
                 Self {
                     root: <Self as Root>::Node::build(&v, 0, v.len()),
                 }
             }
         }
-        impl<$param: $($bound)*> Default for $tree {
+        impl<$($params)*> Default for $tree {
             fn default() -> Self {
                 Self { root: None }
             }
@@ -451,43 +460,55 @@ macro_rules! impl_tree {
 /// assert_eq!(v.collect_vec(), vec![]);
 /// ```
 pub struct RBTree<U> {
-    root: Option<Box<DefaultNode<U>>>,
+    root: Option<Box<OptionNode<U>>>,
 }
-impl_tree!(RBTree<U>, DefaultNode<U> where U: Clone + Default);
+impl_tree! {
+    RBTree<U> where [U: Clone];
+    node = OptionNode<U>;
+}
 
-pub struct DefaultNode<U> {
-    val: U,
+pub struct OptionNode<U> {
+    val: Option<U>,
     base: Base,
     l: Option<Box<Self>>,
     r: Option<Box<Self>>,
 }
-impl<U: Clone + Default> DefaultNode<U> {
-    fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
+impl_node! {
+    OptionNode<U> where [U: Clone];
+    val = U;
+    link = Box<OptionNode<U>>;
+    new(l, r, black) = {
         Box::new(Self {
-            val: Default::default(),
+            val: None,
             base: Base::new(&l.base, &r.base, black),
             l: Some(l),
             r: Some(r),
         })
-    }
-    fn new_leaf(val: U) -> Box<Self> {
+    };
+    new_leaf(val) = {
         Box::new(Self {
-            val,
+            val: Some(val),
             base: Base::new_leaf(),
             l: None,
             r: None,
         })
-    }
-    fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
+    };
+    detach(p) = {
         assert!(!p.base.is_leaf());
         (p.l.unwrap(), p.r.unwrap())
-    }
-    fn make_root(mut p: Box<Self>) -> Box<Self> {
-        p.base = p.base.into_root();
-        p
-    }
+    };
+    make_root(p) = {
+        Box::new(Self {
+            val: p.val,
+            base: p.base.into_root(),
+            l: p.l,
+            r: p.r,
+        })
+    };
+    val(&self) = {
+        self.val.as_ref().unwrap().clone()
+    };
 }
-impl_node!(DefaultNode<U>, U, Box<DefaultNode<U>> where U: Clone + Default);
 
 /// モノイドが載る平衡二分木.
 /// 挿入, 削除, 区間取得, 分割, 統合を O(log n) で行う.
@@ -512,7 +533,10 @@ impl_node!(DefaultNode<U>, U, Box<DefaultNode<U>> where U: Clone + Default);
 pub struct RBSegtree<M: Monoid> {
     root: Option<Box<MonoidNode<M>>>,
 }
-impl_tree!(RBSegtree<M>, MonoidNode<M> where M: Monoid);
+impl_tree! {
+    RBSegtree<M> where [M: Monoid];
+    node = MonoidNode<M>;
+}
 impl<M: Monoid> RangeFold<M, MonoidNode<M>> for RBSegtree<M> {}
 
 pub struct MonoidNode<M: Monoid> {
@@ -521,32 +545,41 @@ pub struct MonoidNode<M: Monoid> {
     l: Option<Box<Self>>,
     r: Option<Box<Self>>,
 }
-impl<M: Monoid> MonoidNode<M> {
-    fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
+impl_node! {
+    MonoidNode<M> where [M: Monoid];
+    val = M::S;
+    link = Box<MonoidNode<M>>;
+    new(l, r, black) = {
         Box::new(Self {
             val: M::binary_operation(&l.val, &r.val),
             base: Base::new(&l.base, &r.base, black),
             l: Some(l),
             r: Some(r),
         })
-    }
-    fn new_leaf(val: M::S) -> Box<Self> {
+    };
+    new_leaf(val) = {
         Box::new(Self {
             val,
             base: Base::new_leaf(),
             l: None,
             r: None,
         })
-    }
-    fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
+    };
+    detach(p) = {
         (p.l.unwrap(), p.r.unwrap())
-    }
-    fn make_root(mut p: Box<Self>) -> Box<Self> {
-        p.base = p.base.into_root();
-        p
-    }
+    };
+    make_root(p) = {
+        Box::new(Self {
+            val: p.val,
+            base: p.base.into_root(),
+            l: p.l,
+            r: p.r,
+        })
+    };
+    val(&self) = {
+        self.val.clone()
+    };
 }
-impl_node!(MonoidNode<M>, M::S, Box<MonoidNode<M>> where M: Monoid);
 
 /// 作用素モノイドが載る平衡二分木.
 /// 挿入, 削除, 区間取得, 区間作用, 分割, 統合 を O(log n) で行う.
@@ -586,7 +619,10 @@ impl_node!(MonoidNode<M>, M::S, Box<MonoidNode<M>> where M: Monoid);
 pub struct RBLazySegtree<F: MapMonoid> {
     root: Option<Box<MapMonoidNode<F>>>,
 }
-impl_tree!(RBLazySegtree<F>, MapMonoidNode<F> where F: MapMonoid);
+impl_tree! {
+    RBLazySegtree<F> where [F: MapMonoid];
+    node = MapMonoidNode<F>;
+}
 impl<F: MapMonoid> RangeFold<F::M, MapMonoidNode<F>> for RBLazySegtree<F> {}
 impl<F: MapMonoid> RangeApply<F, MapMonoidNode<F>> for RBLazySegtree<F> {}
 
@@ -597,8 +633,11 @@ pub struct MapMonoidNode<F: MapMonoid> {
     r: Option<Box<Self>>,
     lazy: F::F,
 }
-impl<F: MapMonoid> MapMonoidNode<F> {
-    fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
+impl_node! {
+    MapMonoidNode<F> where [F: MapMonoid];
+    val = <F::M as Monoid>::S;
+    link = Box<MapMonoidNode<F>>;
+    new(l, r, black) = {
         Box::new(Self {
             val: F::binary_operation(&l.val, &r.val),
             base: Base::new(&l.base, &r.base, black),
@@ -606,8 +645,8 @@ impl<F: MapMonoid> MapMonoidNode<F> {
             r: Some(r),
             lazy: F::identity_map(),
         })
-    }
-    fn new_leaf(val: <F::M as Monoid>::S) -> Box<Self> {
+    };
+    new_leaf(val) = {
         Box::new(Self {
             val,
             base: Base::new_leaf(),
@@ -615,21 +654,28 @@ impl<F: MapMonoid> MapMonoidNode<F> {
             r: None,
             lazy: F::identity_map(),
         })
-    }
-    fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
+    };
+    detach(p) = {
         let (mut l, mut r) = (p.l.unwrap(), p.r.unwrap());
         l.val = F::mapping(&p.lazy, &l.val);
         r.val = F::mapping(&p.lazy, &r.val);
         l.lazy = F::composition(&p.lazy, &l.lazy);
         r.lazy = F::composition(&p.lazy, &r.lazy);
         (l, r)
-    }
-    fn make_root(mut p: Box<Self>) -> Box<Self> {
-        p.base = p.base.into_root();
-        p
-    }
+    };
+    make_root(p) = {
+        Box::new(Self {
+            val: p.val,
+            base: p.base.into_root(),
+            l: p.l,
+            r: p.r,
+            lazy: p.lazy,
+        })
+    };
+    val(&self) = {
+        self.val.clone()
+    };
 }
-impl_node!(MapMonoidNode<F>, <F::M as Monoid>::S, Box<MapMonoidNode<F>> where F: MapMonoid);
 impl_apply!(MapMonoidNode<F: MapMonoid>, F);
 
 /// 作用素モノイドが載る, 区間反転が可能な平衡二分木.
@@ -674,10 +720,10 @@ impl_apply!(MapMonoidNode<F: MapMonoid>, F);
 pub struct ReversibleRBLazySegtree<F: MapMonoid> {
     root: Option<Box<ReversibleMapMonoidNode<F>>>,
 }
-impl_tree!(
-    ReversibleRBLazySegtree<F>,
-    ReversibleMapMonoidNode<F> where F: MapMonoid
-);
+impl_tree! {
+    ReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = ReversibleMapMonoidNode<F>;
+}
 impl<F: MapMonoid> RangeFold<F::M, ReversibleMapMonoidNode<F>> for ReversibleRBLazySegtree<F> {}
 impl<F: MapMonoid> RangeApply<F, ReversibleMapMonoidNode<F>> for ReversibleRBLazySegtree<F> {}
 impl<F: MapMonoid> RangeReverse<ReversibleMapMonoidNode<F>> for ReversibleRBLazySegtree<F> {}
@@ -690,8 +736,11 @@ pub struct ReversibleMapMonoidNode<F: MapMonoid> {
     lazy: F::F,
     rev: bool,
 }
-impl<F: MapMonoid> ReversibleMapMonoidNode<F> {
-    fn new(l: Box<Self>, r: Box<Self>, black: bool) -> Box<Self> {
+impl_node! {
+    ReversibleMapMonoidNode<F> where [F: MapMonoid];
+    val = <F::M as Monoid>::S;
+    link = Box<ReversibleMapMonoidNode<F>>;
+    new(l, r, black) = {
         Box::new(Self {
             val: F::binary_operation(&l.val, &r.val),
             base: Base::new(&l.base, &r.base, black),
@@ -700,8 +749,8 @@ impl<F: MapMonoid> ReversibleMapMonoidNode<F> {
             lazy: F::identity_map(),
             rev: false,
         })
-    }
-    fn new_leaf(val: <F::M as Monoid>::S) -> Box<Self> {
+    };
+    new_leaf(val) = {
         Box::new(Self {
             val,
             base: Base::new_leaf(),
@@ -710,8 +759,8 @@ impl<F: MapMonoid> ReversibleMapMonoidNode<F> {
             lazy: F::identity_map(),
             rev: false,
         })
-    }
-    fn detach(p: Box<Self>) -> (Box<Self>, Box<Self>) {
+    };
+    detach(p) = {
         let (mut l, mut r) = (p.l.unwrap(), p.r.unwrap());
         l.val = F::mapping(&p.lazy, &l.val);
         r.val = F::mapping(&p.lazy, &r.val);
@@ -723,13 +772,21 @@ impl<F: MapMonoid> ReversibleMapMonoidNode<F> {
             return (r, l);
         }
         (l, r)
-    }
-    fn make_root(mut p: Box<Self>) -> Box<Self> {
-        p.base = p.base.into_root();
-        p
-    }
+    };
+    make_root(p) = {
+        Box::new(Self {
+            val: p.val,
+            base: p.base.into_root(),
+            l: p.l,
+            r: p.r,
+            lazy: p.lazy,
+            rev: p.rev,
+        })
+    };
+    val(&self) = {
+        self.val.clone()
+    };
 }
-impl_node!(ReversibleMapMonoidNode<F>, <F::M as Monoid>::S, Box<ReversibleMapMonoidNode<F>> where F: MapMonoid);
 impl_apply!(ReversibleMapMonoidNode<F: MapMonoid>, F);
 impl_reverse!(ReversibleMapMonoidNode<F: MapMonoid>);
 
@@ -764,44 +821,51 @@ use std::rc::Rc;
 /// ```
 #[derive(Clone)]
 pub struct PersistentRBTree<U> {
-    root: Option<Rc<PersistentDefaultNode<U>>>,
+    root: Option<Rc<PersistentOptionNode<U>>>,
 }
-impl_tree!(PersistentRBTree<U>, PersistentDefaultNode<U> where U: Clone + Default);
+impl_tree! {
+    PersistentRBTree<U> where [U: Clone];
+    node = PersistentOptionNode<U>;
+}
 
-pub struct PersistentDefaultNode<U> {
-    val: U,
+pub struct PersistentOptionNode<U> {
+    val: Option<U>,
     base: Base,
     l: Option<Rc<Self>>,
     r: Option<Rc<Self>>,
 }
-impl<U: Clone + Default> PersistentDefaultNode<U> {
-    fn new(l: Rc<Self>, r: Rc<Self>, black: bool) -> Rc<Self> {
+impl_node! {
+    PersistentOptionNode<U> where [U: Clone];
+    val = U;
+    link = Rc<PersistentOptionNode<U>>;
+    new(l, r, black) = {
         Rc::new(Self {
-            val: Default::default(),
+            val: None,
             base: Base::new(&l.base, &r.base, black),
             l: Some(l),
             r: Some(r),
         })
-    }
-    fn new_leaf(val: U) -> Rc<Self> {
+    };
+    new_leaf(val) = {
         Rc::new(Self {
-            val,
+            val: Some(val),
             base: Base::new_leaf(),
             l: None,
             r: None,
         })
-    }
-    fn detach(p: Rc<Self>) -> (Rc<Self>, Rc<Self>) {
-        assert!(!p.base.is_leaf());
+    };
+    detach(p) = {
         (p.l.as_ref().unwrap().clone(), p.r.as_ref().unwrap().clone())
-    }
-    fn make_root(p: Rc<Self>) -> Rc<Self> {
+    };
+    make_root(p) = {
         Rc::new(Self {
             base: p.base.clone().into_root(),
             val: p.val.clone(),
             l: p.l.clone(),
             r: p.r.clone(),
         })
-    }
+    };
+    val(&self) = {
+        self.val.as_ref().unwrap().clone()
+    };
 }
-impl_node!(PersistentDefaultNode<U>, U, Rc<PersistentDefaultNode<U>> where U: Clone + Default);

@@ -29,7 +29,7 @@ macro_rules! impl_node {
             fn val(&$self) -> Self::Value {
                 $get_val
             }
-            fn base(&self) -> &Base {
+            fn base(&self) -> &Base<Self> {
                 &self.base
             }
         }
@@ -127,7 +127,7 @@ macro_rules! impl_range_reverse {
 /// assert_eq!(t.collect_vec(), vec![30, 40, 10, 30]);
 /// assert_eq!(v.collect_vec(), vec![]);
 /// ```
-pub struct RBTree<U> {
+pub struct RBTree<U: Clone> {
     root: Option<Box<OptionNode<U>>>,
 }
 impl_tree! {
@@ -135,11 +135,9 @@ impl_tree! {
     node = OptionNode<U>;
 }
 
-pub struct OptionNode<U> {
+pub struct OptionNode<U: Clone> {
     val: Option<U>,
-    base: Base,
-    l: Option<Box<Self>>,
-    r: Option<Box<Self>>,
+    base: Base<Self>,
 }
 impl_node! {
     OptionNode<U> where [U: Clone];
@@ -148,21 +146,17 @@ impl_node! {
     new(l, r, black) = {
         Box::new(Self {
             val: None,
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
+            base: Base::new(l, r, black),
         })
     };
     new_leaf(val) = {
         Box::new(Self {
             val: Some(val),
             base: Base::new_leaf(),
-            l: None,
-            r: None,
         })
     };
     detach(p) = {
-        (p.l.unwrap(), p.r.unwrap())
+        p.base.detach()
     };
     make_root(mut p) = {
         p.base.make_root();
@@ -203,9 +197,7 @@ impl_tree! {
 
 pub struct MonoidNode<M: Monoid> {
     val: M::S,
-    base: Base,
-    l: Option<Box<Self>>,
-    r: Option<Box<Self>>,
+    base: Base<Self>,
 }
 impl_node! {
     MonoidNode<M> where [M: Monoid];
@@ -214,21 +206,17 @@ impl_node! {
     new(l, r, black) = {
         Box::new(Self {
             val: M::binary_operation(&l.val, &r.val),
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
+            base: Base::new(l, r, black),
         })
     };
     new_leaf(val) = {
         Box::new(Self {
             val,
             base: Base::new_leaf(),
-            l: None,
-            r: None,
         })
     };
     detach(p) = {
-        (p.l.unwrap(), p.r.unwrap())
+        p.base.detach()
     };
     make_root(mut p) = {
         p.base.make_root();
@@ -290,10 +278,8 @@ impl_tree! {
 
 pub struct MapMonoidNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
-    base: Base,
-    l: Option<Box<Self>>,
-    r: Option<Box<Self>>,
     lazy: F::F,
+    base: Base<Self>,
 }
 impl_node! {
     MapMonoidNode<F> where [F: MapMonoid];
@@ -302,23 +288,19 @@ impl_node! {
     new(l, r, black) = {
         Box::new(Self {
             val: F::binary_operation(&l.val, &r.val),
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
             lazy: F::identity_map(),
+            base: Base::new(l, r, black),
         })
     };
     new_leaf(val) = {
         Box::new(Self {
             val,
-            base: Base::new_leaf(),
-            l: None,
-            r: None,
             lazy: F::identity_map(),
+            base: Base::new_leaf(),
         })
     };
     detach(p) = {
-        let (mut l, mut r) = (p.l.unwrap(), p.r.unwrap());
+        let (mut l, mut r) = p.base.detach();
         l.val = F::mapping(&p.lazy, &l.val);
         r.val = F::mapping(&p.lazy, &r.val);
         l.lazy = F::composition(&p.lazy, &l.lazy);
@@ -399,11 +381,9 @@ impl_tree! {
 
 pub struct ReversibleMapMonoidNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
-    base: Base,
-    l: Option<Box<Self>>,
-    r: Option<Box<Self>>,
     lazy: F::F,
     rev: bool,
+    base: Base<Self>,
 }
 impl_node! {
     ReversibleMapMonoidNode<F> where [F: MapMonoid];
@@ -412,25 +392,21 @@ impl_node! {
     new(l, r, black) = {
         Box::new(Self {
             val: F::binary_operation(&l.val, &r.val),
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
             lazy: F::identity_map(),
             rev: false,
+            base: Base::new(l, r, black),
         })
     };
     new_leaf(val) = {
         Box::new(Self {
             val,
-            base: Base::new_leaf(),
-            l: None,
-            r: None,
             lazy: F::identity_map(),
             rev: false,
+            base: Base::new_leaf(),
         })
     };
     detach(p) = {
-        let (mut l, mut r) = (p.l.unwrap(), p.r.unwrap());
+        let (mut l, mut r) = p.base.detach();
         l.val = F::mapping(&p.lazy, &l.val);
         r.val = F::mapping(&p.lazy, &r.val);
         l.lazy = F::composition(&p.lazy, &l.lazy);
@@ -476,6 +452,17 @@ impl_range_reverse! {
 }
 
 use std::rc::Rc;
+impl<T: Node<Link = Rc<T>>> Clone for Base<T> {
+    fn clone(&self) -> Self {
+        Self {
+            black: self.black,
+            height: self.height,
+            size: self.size,
+            l: self.l.clone(),
+            r: self.r.clone(),
+        }
+    }
+}
 
 /// 列を管理する永続平衡二分木.
 /// 挿入, 削除, 取得, 分割, 統合 を O(log n), clone を O(1) で行う.
@@ -503,10 +490,10 @@ use std::rc::Rc;
 /// t.merge(&mut s);  // [30, 40, 10, 30, 30, 40, 10, 30]
 /// assert_eq!(t.collect_vec(), vec![30, 40, 10, 30, 30, 40, 10, 30]);
 /// ```
-pub struct PersistentRBTree<U> {
+pub struct PersistentRBTree<U: Clone> {
     root: Option<Rc<PersistentOptionNode<U>>>,
 }
-impl<U> Clone for PersistentRBTree<U> {
+impl<U: Clone> Clone for PersistentRBTree<U> {
     fn clone(&self) -> Self {
         Self {
             root: self.root.clone(),
@@ -518,19 +505,15 @@ impl_tree! {
     node = PersistentOptionNode<U>;
 }
 
-pub struct PersistentOptionNode<U> {
+pub struct PersistentOptionNode<U: Clone> {
     val: Option<U>,
-    base: Base,
-    l: Option<Rc<Self>>,
-    r: Option<Rc<Self>>,
+    base: Base<Self>,
 }
 impl<U: Clone> Clone for PersistentOptionNode<U> {
     fn clone(&self) -> Self {
         Self {
             val: self.val.clone(),
             base: self.base.clone(),
-            l: self.l.clone(),
-            r: self.r.clone(),
         }
     }
 }
@@ -541,21 +524,17 @@ impl_node! {
     new(l, r, black) = {
         Rc::new(Self {
             val: None,
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
+            base: Base::new(l, r, black),
         })
     };
     new_leaf(val) = {
         Rc::new(Self {
             val: Some(val),
             base: Base::new_leaf(),
-            l: None,
-            r: None,
         })
     };
     detach(p) = {
-        (p.l.as_ref().unwrap().clone(), p.r.as_ref().unwrap().clone())
+        p.base.clone().detach()
     };
     make_root(mut p) = {
         Rc::make_mut(&mut p).base.make_root();
@@ -584,17 +563,13 @@ impl_tree! {
 
 pub struct PersistentMonoidNode<M: Monoid> {
     val: M::S,
-    base: Base,
-    l: Option<Rc<Self>>,
-    r: Option<Rc<Self>>,
+    base: Base<Self>,
 }
 impl<M: Monoid> Clone for PersistentMonoidNode<M> {
     fn clone(&self) -> Self {
         Self {
             val: self.val.clone(),
             base: self.base.clone(),
-            l: self.l.clone(),
-            r: self.r.clone(),
         }
     }
 }
@@ -605,21 +580,17 @@ impl_node! {
     new(l, r, black) = {
         Rc::new(Self {
             val: M::binary_operation(&l.val, &r.val),
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
+            base: Base::new(l, r, black),
         })
     };
     new_leaf(val) = {
         Rc::new(Self {
             val,
             base: Base::new_leaf(),
-            l: None,
-            r: None,
         })
     };
     detach(p) = {
-        (p.l.as_ref().unwrap().clone(), p.r.as_ref().unwrap().clone())
+        p.base.clone().detach()
     };
     make_root(mut p) = {
         Rc::make_mut(&mut p).base.make_root();
@@ -654,19 +625,15 @@ impl_tree! {
 
 pub struct PersistentMapMonoidNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
-    base: Base,
-    l: Option<Rc<Self>>,
-    r: Option<Rc<Self>>,
     lazy: F::F,
+    base: Base<Self>,
 }
 impl<F: MapMonoid> Clone for PersistentMapMonoidNode<F> {
     fn clone(&self) -> Self {
         Self {
             val: self.val.clone(),
-            base: self.base.clone(),
-            l: self.l.clone(),
-            r: self.r.clone(),
             lazy: self.lazy.clone(),
+            base: self.base.clone(),
         }
     }
 }
@@ -677,23 +644,19 @@ impl_node! {
     new(l, r, black) = {
         Rc::new(Self {
             val: F::binary_operation(&l.val, &r.val),
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
             lazy: F::identity_map(),
+            base: Base::new(l, r, black),
         })
     };
     new_leaf(val) = {
         Rc::new(Self {
             val,
-            base: Base::new_leaf(),
-            l: None,
-            r: None,
             lazy: F::identity_map(),
+            base: Base::new_leaf(),
         })
     };
     detach(p) = {
-        let (mut l, mut r) = (p.l.as_ref().unwrap().clone(), p.r.as_ref().unwrap().clone());
+        let (mut l, mut r) = p.base.clone().detach();
         Rc::make_mut(&mut l).val = F::mapping(&p.lazy, &l.val);
         Rc::make_mut(&mut r).val = F::mapping(&p.lazy, &r.val);
         Rc::make_mut(&mut l).lazy = F::composition(&p.lazy, &l.lazy);
@@ -787,21 +750,17 @@ impl_tree! {
 
 pub struct PersistentReversibleMapMonoidNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
-    base: Base,
-    l: Option<Rc<Self>>,
-    r: Option<Rc<Self>>,
     lazy: F::F,
     rev: bool,
+    base: Base<Self>,
 }
 impl<F: MapMonoid> Clone for PersistentReversibleMapMonoidNode<F> {
     fn clone(&self) -> Self {
         Self {
             val: self.val.clone(),
-            base: self.base.clone(),
-            l: self.l.clone(),
-            r: self.r.clone(),
             lazy: self.lazy.clone(),
             rev: self.rev.clone(),
+            base: self.base.clone(),
         }
     }
 }
@@ -812,25 +771,21 @@ impl_node! {
     new(l, r, black) = {
         Rc::new(Self {
             val: F::binary_operation(&l.val, &r.val),
-            base: Base::new(&l.base, &r.base, black),
-            l: Some(l),
-            r: Some(r),
             lazy: F::identity_map(),
             rev: false,
+            base: Base::new(l, r, black),
         })
     };
     new_leaf(val) = {
         Rc::new(Self {
             val,
-            base: Base::new_leaf(),
-            l: None,
-            r: None,
             lazy: F::identity_map(),
             rev: false,
+            base: Base::new_leaf(),
         })
     };
     detach(p) = {
-        let (mut l, mut r) = (p.l.as_ref().unwrap().clone(), p.r.as_ref().unwrap().clone());
+        let (mut l, mut r) = p.base.clone().detach();
         Rc::make_mut(&mut l).val = F::mapping(&p.lazy, &l.val);
         Rc::make_mut(&mut r).val = F::mapping(&p.lazy, &r.val);
         Rc::make_mut(&mut l).lazy = F::composition(&p.lazy, &l.lazy);

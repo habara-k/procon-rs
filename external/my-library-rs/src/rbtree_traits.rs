@@ -1,21 +1,25 @@
 const RED: bool = false;
 const BLACK: bool = true;
 
-#[derive(Clone)]
-pub struct Base {
-    black: bool,
-    height: usize,
-    size: usize,
+pub struct Base<T: Node> {
+    pub l: Option<T::Link>,
+    pub r: Option<T::Link>,
+    pub black: bool,
+    pub height: usize,
+    pub size: usize,
 }
-impl Base {
-    pub fn new(l: &Self, r: &Self, black: bool) -> Self {
-        assert_eq!(l.height, r.height);
-        assert!(l.black || black);
-        assert!(r.black || black);
+
+impl<T: Node> Base<T> {
+    pub fn new(l: T::Link, r: T::Link, black: bool) -> Self {
+        assert_eq!(l.height(), r.height());
+        assert!(l.black() || black);
+        assert!(r.black() || black);
         Self {
             black,
-            height: l.height + black as usize,
-            size: l.size + r.size,
+            height: l.height() + black as usize,
+            size: l.size() + r.size(),
+            l: Some(l),
+            r: Some(r),
         }
     }
     pub fn new_leaf() -> Self {
@@ -23,6 +27,8 @@ impl Base {
             black: false,
             height: 0,
             size: 1,
+            l: None,
+            r: None,
         }
     }
     pub fn is_leaf(&self) -> bool {
@@ -34,11 +40,15 @@ impl Base {
             self.height += 1;
         }
     }
+    pub fn detach(self) -> (T::Link, T::Link) {
+        assert!(!self.is_leaf());
+        (self.l.unwrap(), self.r.unwrap())
+    }
 }
 
 use std::ops::Deref;
 
-pub trait Node {
+pub trait Node: Sized {
     type Value: Clone;
     type Link: Deref<Target = Self>;
     fn new(l: Self::Link, r: Self::Link, black: bool) -> Self::Link;
@@ -46,7 +56,7 @@ pub trait Node {
     fn detach(p: Self::Link) -> (Self::Link, Self::Link);
     fn make_root(p: Self::Link) -> Self::Link;
     fn val(&self) -> Self::Value;
-    fn base(&self) -> &Base;
+    fn base(&self) -> &Base<Self>;
 
     fn black(&self) -> bool {
         self.base().black

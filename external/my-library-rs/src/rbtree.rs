@@ -1,340 +1,4 @@
-const RED: bool = false;
-const BLACK: bool = true;
-
-#[derive(Clone)]
-struct Base {
-    black: bool,
-    height: usize,
-    size: usize,
-}
-impl Base {
-    fn new(l: &Self, r: &Self, black: bool) -> Self {
-        assert_eq!(l.height, r.height);
-        assert!(l.black || black);
-        assert!(r.black || black);
-        Self {
-            black,
-            height: l.height + black as usize,
-            size: l.size + r.size,
-        }
-    }
-    fn new_leaf() -> Self {
-        Self {
-            black: true,
-            height: 1,
-            size: 1,
-        }
-    }
-    fn is_leaf(&self) -> bool {
-        self.black && self.height == 1
-    }
-    fn make_root(&mut self) {
-        if !self.black {
-            self.black = true;
-            self.height += 1;
-        }
-    }
-}
-
-use std::ops::Deref;
-
-pub trait Node {
-    type Value: Clone;
-    type Link: Deref<Target = Self>;
-    fn new(l: Self::Link, r: Self::Link, black: bool) -> Self::Link;
-    fn new_leaf(val: Self::Value) -> Self::Link;
-    fn detach(p: Self::Link) -> (Self::Link, Self::Link);
-    fn make_root(p: Self::Link) -> Self::Link;
-    fn black(&self) -> bool;
-    fn is_leaf(&self) -> bool;
-    fn height(&self) -> usize;
-    fn size(&self) -> usize;
-    fn val(&self) -> Self::Value;
-
-    fn len(p: &Option<Self::Link>) -> usize {
-        p.as_ref().map_or(0, |p| p.size())
-    }
-    fn merge(a: Option<Self::Link>, b: Option<Self::Link>) -> Option<Self::Link> {
-        if a.is_none() {
-            return b;
-        }
-        if b.is_none() {
-            return a;
-        }
-        let (a, b) = (a.unwrap(), b.unwrap());
-        Some(Self::merge_sub(Self::make_root(a), Self::make_root(b)))
-    }
-    fn merge_sub(a: Self::Link, b: Self::Link) -> Self::Link {
-        // # Require
-        //     a.black == true, b.black == true
-        // # Ensure
-        //     return.height == max(a.height, b.height)
-        //     [WARNING] return.black may be false!
-        assert!(a.black());
-        assert!(b.black());
-
-        if a.height() < b.height() {
-            let (l, r) = Self::detach(b);
-            //      b(BLACK,h+1)
-            //       /     \
-            //   l(*,h)    r(*,h)
-
-            if l.black() {
-                // Connect directly:
-                //               (BLACK,h+1)
-                //                /        \
-                //   merge_sub(a,l)(*,h)   r(*,h)
-                return Self::new(Self::merge_sub(a, l), r, BLACK);
-            }
-
-            let (ll, lr) = Self::detach(l);
-            //           b(BLACK,h+1)
-            //           /      \
-            //       l(RED,h)   r(*,h)
-            //       /       \
-            //   ll(BLACK,h)  lr(BLACK,h)
-
-            let c = Self::merge_sub(a, ll);
-            if c.black() {
-                // Connect directly:
-                //             (BLACK,h+1)
-                //             /    \
-                //         (RED,h)   r(BLACK,h)
-                //         /    \
-                //   c(BLACK,h)  lr(BLACK,h)
-                return Self::new(Self::new(c, lr, RED), r, BLACK);
-            }
-
-            return if r.black() {
-                // Rotate tree:
-                //             (BLACK,h+1)                (BLACK,h+1)
-                //             /    \                     /     \
-                //         (RED,h)  r(BLACK,h)   =>   c(RED,h)  (RED,h)
-                //        /    \                                /    \
-                //   c(RED,h)   lr(BLACK,h)              lr(BLACK,h)  r(BLACK,h)
-                Self::new(c, Self::new(lr, r, RED), BLACK)
-            } else {
-                // Change color:
-                //             (BLACK,h+1)                   (RED,h+1)
-                //             /    \                        /       \
-                //         (RED,h)  r(RED,h)     =>      (BLACK,h+1)  r(BLACK,h+1)
-                //        /    \                          /     \
-                //   c(RED,h)   lr(BLACK,h)           c(RED,h)   lr(BLACK,h)
-                Self::new(Self::new(c, lr, BLACK), Self::make_root(r), RED)
-            };
-        }
-        if a.height() > b.height() {
-            // Do the reverse of the above procedure.
-            let (l, r) = Self::detach(a);
-            if r.black() {
-                return Self::new(l, Self::merge_sub(r, b), BLACK);
-            }
-
-            let (rl, rr) = Self::detach(r);
-            let c = Self::merge_sub(rr, b);
-            if c.black() {
-                return Self::new(l, Self::new(rl, c, RED), BLACK);
-            }
-
-            return if l.black() {
-                Self::new(Self::new(l, rl, RED), c, BLACK)
-            } else {
-                Self::new(Self::make_root(l), Self::new(rl, c, BLACK), RED)
-            };
-        }
-
-        // Connect directly:
-        //         (RED,h)
-        //         /     \
-        //   a(BLACK,h)  b(BLACK,h)
-        Self::new(a, b, RED)
-    }
-    fn split_range(
-        p: Option<Self::Link>,
-        l: usize,
-        r: usize,
-    ) -> (Option<Self::Link>, Option<Self::Link>, Option<Self::Link>) {
-        assert!(l <= r && r <= Self::len(&p));
-        let (p, c) = Self::split(p, r);
-        let (a, b) = Self::split(p, l);
-        (a, b, c)
-    }
-    fn split(p: Option<Self::Link>, k: usize) -> (Option<Self::Link>, Option<Self::Link>) {
-        assert!(k <= Self::len(&p));
-        if k == 0 {
-            return (None, p);
-        }
-        if k == Self::len(&p) {
-            return (p, None);
-        }
-        let (l, r) = Self::detach(p.unwrap());
-        if k < l.size() {
-            let (a, b) = Self::split(Some(l), k);
-            return (a, Self::merge(b, Some(r)));
-        }
-        if k > l.size() {
-            let (a, b) = Self::split(Some(r), k - l.size());
-            return (Self::merge(Some(l), a), b);
-        }
-        (Some(l), Some(r))
-    }
-    fn insert(p: Option<Self::Link>, k: usize, val: Self::Value) -> Option<Self::Link> {
-        assert!(k <= Self::len(&p));
-        let (a, b) = Self::split(p, k);
-        Self::merge(Self::merge(a, Some(Self::new_leaf(val))), b)
-    }
-    fn remove(p: Option<Self::Link>, k: usize) -> (Option<Self::Link>, Self::Value) {
-        assert!(k < Self::len(&p));
-        let (a, b, c) = Self::split_range(p, k, k + 1);
-        (Self::merge(a, c), b.unwrap().val())
-    }
-    fn build(v: &[Self::Value], l: usize, r: usize) -> Option<Self::Link> {
-        assert!(l <= r && r <= v.len());
-        if l == r {
-            return None;
-        }
-        if l + 1 == r {
-            return Some(Self::new_leaf(v[l].clone()));
-        }
-        Self::merge(
-            Self::build(v, l, (l + r) / 2),
-            Self::build(v, (l + r) / 2, r),
-        )
-    }
-    fn collect_vec(mut p: Self::Link, v: &mut Vec<Self::Value>) -> Self::Link {
-        if !p.is_leaf() {
-            let black = p.black();
-            let (mut l, mut r) = Self::detach(p);
-            l = Self::collect_vec(l, v);
-            r = Self::collect_vec(r, v);
-            p = Self::new(l, r, black);
-        } else {
-            v.push(p.val());
-        }
-        p
-    }
-}
-
-pub trait Root {
-    type Node: Node;
-    fn root(&self) -> &Option<<Self::Node as Node>::Link>;
-    fn mut_root(&mut self) -> &mut Option<<Self::Node as Node>::Link>;
-    fn new(root: Option<<Self::Node as Node>::Link>) -> Self;
-}
-
-use std::mem;
-pub trait Tree: Root {
-    /// 要素数を返す.
-    fn len(&self) -> usize {
-        Self::Node::len(self.root())
-    }
-    /// `k` 番目に `val` を挿入する.
-    fn insert(&mut self, k: usize, val: <Self::Node as Node>::Value) {
-        assert!(k <= self.len());
-        let root = mem::replace(self.mut_root(), None);
-        *self.mut_root() = Self::Node::insert(root, k, val);
-    }
-    /// `k` 番目の要素を削除し, その値を返す.
-    fn remove(&mut self, k: usize) -> <Self::Node as Node>::Value {
-        assert!(k < self.len());
-        let root = mem::replace(self.mut_root(), None);
-        let (root, val) = Self::Node::remove(root, k);
-        *self.mut_root() = root;
-        val
-    }
-    /// [0,n) => [0,k), [k,n)
-    fn split(&mut self, k: usize, other: &mut Self) {
-        let root = mem::replace(self.mut_root(), None);
-        let (l, r) = Self::Node::split(root, k);
-        *self.mut_root() = l;
-        *other.mut_root() = r;
-    }
-    /// [0,k), [k,n) => [0,n)
-    fn merge(&mut self, other: &mut Self) {
-        let root = mem::replace(self.mut_root(), None);
-        *self.mut_root() = Self::Node::merge(root, mem::replace(other.mut_root(), None));
-    }
-    /// `k` 番目の要素を返す.
-    fn get(&mut self, k: usize) -> <Self::Node as Node>::Value {
-        assert!(k < self.len());
-        let val = self.remove(k);
-        self.insert(k, val.clone());
-        val
-    }
-    fn collect_vec(&mut self) -> Vec<<Self::Node as Node>::Value> {
-        if self.len() == 0 {
-            return vec![];
-        }
-        let root = mem::replace(self.mut_root(), None).unwrap();
-        let mut v = vec![];
-        *self.mut_root() = Some(Self::Node::collect_vec(root, &mut v));
-        v
-    }
-}
-
-pub use crate::algebra::Monoid;
-pub trait RangeFold<M, T>: Tree<Node = T>
-where
-    M: Monoid,
-    T: Node<Value = M::S>,
-{
-    fn prod(&mut self, l: usize, r: usize) -> M::S {
-        assert!(l <= r && r <= self.len());
-        if l == r {
-            return M::identity();
-        }
-
-        let root = mem::replace(self.mut_root(), None);
-        let (a, b, c) = Self::Node::split_range(root, l, r);
-
-        let val = b.as_ref().unwrap().val();
-
-        *self.mut_root() = Self::Node::merge(Self::Node::merge(a, b), c);
-        val
-    }
-}
-
-pub use crate::algebra::MapMonoid;
-pub trait Apply<F: MapMonoid>: Node<Value = <F::M as Monoid>::S> {
-    fn apply(p: <Self as Node>::Link, f: F::F) -> <Self as Node>::Link;
-}
-
-pub trait RangeApply<F, T>: Tree<Node = T>
-where
-    F: MapMonoid,
-    T: Apply<F>,
-{
-    fn apply_range(&mut self, l: usize, r: usize, f: F::F) {
-        assert!(l <= r && r <= self.len());
-        if l == r {
-            return;
-        }
-        let root = mem::replace(self.mut_root(), None);
-        let (a, mut b, c) = Self::Node::split_range(root, l, r);
-
-        b = Some(T::apply(b.unwrap(), f));
-
-        *self.mut_root() = Self::Node::merge(Self::Node::merge(a, b), c);
-    }
-}
-
-pub trait Reverse: Node {
-    fn reverse(p: <Self as Node>::Link) -> <Self as Node>::Link;
-}
-pub trait RangeReverse<T: Reverse>: Tree<Node = T> {
-    fn reverse_range(&mut self, l: usize, r: usize) {
-        assert!(l <= r && r <= self.len());
-        if l == r {
-            return;
-        }
-        let root = mem::replace(self.mut_root(), None);
-        let (a, mut b, c) = Self::Node::split_range(root, l, r);
-
-        b = Some(T::reverse(b.unwrap()));
-
-        *self.mut_root() = Self::Node::merge(Self::Node::merge(a, b), c);
-    }
-}
+use crate::rbtree_traits::*;
 
 macro_rules! impl_node {
     (
@@ -365,42 +29,8 @@ macro_rules! impl_node {
             fn val(&$self) -> Self::Value {
                 $get_val
             }
-            fn black(&self) -> bool {
-                self.base.black
-            }
-            fn is_leaf(&self) -> bool {
-                self.base.is_leaf()
-            }
-            fn height(&self) -> usize {
-                self.base.height
-            }
-            fn size(&self) -> usize {
-                self.base.size
-            }
-        }
-    };
-}
-macro_rules! impl_apply {
-    (
-        $node:ty where [$($params:tt)*];
-        map_monoid = $map_monoid:ident;
-        apply($f:ident, $($p:tt)*) = $apply:block;
-    ) => {
-        impl<$($params)*> Apply<$map_monoid> for $node {
-            fn apply($($p)*: <Self as Node>::Link, $f: <$map_monoid>::F) -> <Self as Node>::Link {
-                $apply
-            }
-        }
-    };
-}
-macro_rules! impl_reverse {
-    (
-        $node:ty where [$($params:tt)*];
-        reverse($($p:tt)*) = $reverse:block;
-    ) => {
-        impl<$($params)*> Reverse for $node {
-            fn reverse($($p)*: <Self as Node>::Link) -> <Self as Node>::Link {
-                $reverse
+            fn base(&self) -> &Base {
+                &self.base
             }
         }
     };
@@ -413,10 +43,7 @@ macro_rules! impl_tree {
     ) => {
         impl<$($params)*> Root for $tree {
             type Node = $node;
-            fn root(&self) -> &Option<<Self::Node as Node>::Link> {
-                &self.root
-            }
-            fn mut_root(&mut self) -> &mut Option<<Self::Node as Node>::Link> {
+            fn root(&mut self) -> &mut Option<<Self::Node as Node>::Link> {
                 &mut self.root
             }
             fn new(root: Option<<Self::Node as Node>::Link>) -> Self {
@@ -439,6 +66,45 @@ macro_rules! impl_tree {
     };
 }
 
+macro_rules! impl_range_fold {
+    (
+        tree = $tree:ty where [$($tree_params:tt)*];
+        node = $node:ty;
+        monoid = $monoid:ty;
+    ) => {
+        impl<$($tree_params)*> RangeFold<$monoid, $node> for $tree {}
+    };
+}
+macro_rules! impl_range_apply {
+    (
+        tree = $tree:ty where [$($tree_params:tt)*];
+        node = $node:ty where [$($node_params:tt)*];
+        map_monoid = $map_monoid:ty;
+        apply($f:ident, $($p:tt)*) = $apply:block;
+    ) => {
+        impl<$($tree_params)*> RangeApply<$map_monoid, $node> for $tree {}
+        impl<$($node_params)*> Apply<$map_monoid> for $node {
+            fn apply($($p)*: <Self as Node>::Link, $f: <$map_monoid>::F) -> <Self as Node>::Link {
+                $apply
+            }
+        }
+    };
+}
+macro_rules! impl_range_reverse {
+    (
+        tree = $tree:ty where [$($tree_params:tt)*];
+        node = $node:ty where [$($node_params:tt)*];
+        reverse($($p:tt)*) = $reverse:block;
+    ) => {
+        impl<$($tree_params)*> RangeReverse<$node> for $tree {}
+        impl<$($node_params)*> Reverse for $node {
+            fn reverse($($p)*: <Self as Node>::Link) -> <Self as Node>::Link {
+                $reverse
+            }
+        }
+    };
+}
+
 /// 列を管理する平衡二分木.
 /// 挿入, 削除, 取得, 分割, 統合 を O(log n) で行う.
 ///
@@ -453,8 +119,7 @@ macro_rules! impl_tree {
 /// assert_eq!(v.len(), 4);
 /// assert_eq!((v.get(0), v.get(1), v.get(2), v.get(3)), (10, 30, 30, 40));
 ///
-/// let mut t: RBTree<u32> = Default::default();
-/// v.split(2, &mut t);  // [10, 30], [30, 40];
+/// let mut t = v.split(2);  // [10, 30], [30, 40];
 /// assert_eq!(v.collect_vec(), vec![10, 30]);
 /// assert_eq!(t.collect_vec(), vec![30, 40]);
 ///
@@ -535,7 +200,11 @@ impl_tree! {
     RBSegtree<M> where [M: Monoid];
     node = MonoidNode<M>;
 }
-impl<M: Monoid> RangeFold<M, MonoidNode<M>> for RBSegtree<M> {}
+impl_range_fold! {
+    tree = RBSegtree<M> where [M: Monoid];
+    node = MonoidNode<M>;
+    monoid = M;
+}
 
 pub struct MonoidNode<M: Monoid> {
     val: M::S,
@@ -617,8 +286,11 @@ impl_tree! {
     RBLazySegtree<F> where [F: MapMonoid];
     node = MapMonoidNode<F>;
 }
-impl<F: MapMonoid> RangeFold<F::M, MapMonoidNode<F>> for RBLazySegtree<F> {}
-impl<F: MapMonoid> RangeApply<F, MapMonoidNode<F>> for RBLazySegtree<F> {}
+impl_range_fold! {
+    tree = RBLazySegtree<F> where [F: MapMonoid];
+    node = MapMonoidNode<F>;
+    monoid = F::M;
+}
 
 pub struct MapMonoidNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
@@ -665,8 +337,10 @@ impl_node! {
         self.val.clone()
     };
 }
-impl_apply! {
-    MapMonoidNode<F> where [F: MapMonoid];
+
+impl_range_apply! {
+    tree = RBLazySegtree<F> where [F: MapMonoid];
+    node = MapMonoidNode<F> where [F: MapMonoid];
     map_monoid = F;
     apply(f, mut p) = {
         p.val = F::mapping(&f, &p.val);
@@ -721,9 +395,11 @@ impl_tree! {
     ReversibleRBLazySegtree<F> where [F: MapMonoid];
     node = ReversibleMapMonoidNode<F>;
 }
-impl<F: MapMonoid> RangeFold<F::M, ReversibleMapMonoidNode<F>> for ReversibleRBLazySegtree<F> {}
-impl<F: MapMonoid> RangeApply<F, ReversibleMapMonoidNode<F>> for ReversibleRBLazySegtree<F> {}
-impl<F: MapMonoid> RangeReverse<ReversibleMapMonoidNode<F>> for ReversibleRBLazySegtree<F> {}
+impl_range_fold! {
+    tree = ReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = ReversibleMapMonoidNode<F>;
+    monoid = F::M;
+}
 
 pub struct ReversibleMapMonoidNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
@@ -778,8 +454,10 @@ impl_node! {
         self.val.clone()
     };
 }
-impl_apply! {
-    ReversibleMapMonoidNode<F> where [F: MapMonoid];
+
+impl_range_apply! {
+    tree = ReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = ReversibleMapMonoidNode<F> where [F: MapMonoid];
     map_monoid = F;
     apply(f, mut p) = {
         p.val = F::mapping(&f, &p.val);
@@ -787,8 +465,9 @@ impl_apply! {
         p
     };
 }
-impl_reverse! {
-    ReversibleMapMonoidNode<F> where [F: MapMonoid];
+impl_range_reverse! {
+    tree = ReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = ReversibleMapMonoidNode<F> where [F: MapMonoid];
     reverse(mut p) = {
         p.rev ^= true;
         p
@@ -811,8 +490,7 @@ use std::rc::Rc;
 /// assert_eq!(v.len(), 4);
 /// assert_eq!((v.get(0), v.get(1), v.get(2), v.get(3)), (10, 30, 30, 40));
 ///
-/// let mut t: PersistentRBTree<u32> = Default::default();
-/// v.split(2, &mut t);  // [10, 30], [30, 40];
+/// let mut t = v.split(2);  // [10, 30], [30, 40];
 /// assert_eq!(v.collect_vec(), vec![10, 30]);
 /// assert_eq!(t.collect_vec(), vec![30, 40]);
 ///
@@ -946,18 +624,6 @@ impl_tree! {
     PersistentReversibleRBLazySegtree<F> where [F: MapMonoid];
     node = PersistentReversibleMapMonoidNode<F>;
 }
-impl<F: MapMonoid> RangeFold<F::M, PersistentReversibleMapMonoidNode<F>>
-    for PersistentReversibleRBLazySegtree<F>
-{
-}
-impl<F: MapMonoid> RangeApply<F, PersistentReversibleMapMonoidNode<F>>
-    for PersistentReversibleRBLazySegtree<F>
-{
-}
-impl<F: MapMonoid> RangeReverse<PersistentReversibleMapMonoidNode<F>>
-    for PersistentReversibleRBLazySegtree<F>
-{
-}
 
 pub struct PersistentReversibleMapMonoidNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
@@ -1024,8 +690,15 @@ impl_node! {
         self.val.clone()
     };
 }
-impl_apply! {
-    PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
+
+impl_range_fold! {
+    tree = PersistentReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = PersistentReversibleMapMonoidNode<F>;
+    monoid = F::M;
+}
+impl_range_apply! {
+    tree = PersistentReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
     map_monoid = F;
     apply(f, mut p) = {
         Rc::make_mut(&mut p).val = F::mapping(&f, &p.val);
@@ -1033,8 +706,9 @@ impl_apply! {
         p
     };
 }
-impl_reverse! {
-    PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
+impl_range_reverse! {
+    tree = PersistentReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
     reverse(mut p) = {
         Rc::make_mut(&mut p).rev ^= true;
         p

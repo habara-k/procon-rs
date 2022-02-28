@@ -200,11 +200,6 @@ impl_tree! {
     RBSegtree<M> where [M: Monoid];
     node = MonoidNode<M>;
 }
-impl_range_fold! {
-    tree = RBSegtree<M> where [M: Monoid];
-    node = MonoidNode<M>;
-    monoid = M;
-}
 
 pub struct MonoidNode<M: Monoid> {
     val: M::S,
@@ -242,6 +237,12 @@ impl_node! {
     val(&self) = {
         self.val.clone()
     };
+}
+
+impl_range_fold! {
+    tree = RBSegtree<M> where [M: Monoid];
+    node = MonoidNode<M>;
+    monoid = M;
 }
 
 /// 作用素モノイドが載る平衡二分木.
@@ -285,11 +286,6 @@ pub struct RBLazySegtree<F: MapMonoid> {
 impl_tree! {
     RBLazySegtree<F> where [F: MapMonoid];
     node = MapMonoidNode<F>;
-}
-impl_range_fold! {
-    tree = RBLazySegtree<F> where [F: MapMonoid];
-    node = MapMonoidNode<F>;
-    monoid = F::M;
 }
 
 pub struct MapMonoidNode<F: MapMonoid> {
@@ -338,6 +334,11 @@ impl_node! {
     };
 }
 
+impl_range_fold! {
+    tree = RBLazySegtree<F> where [F: MapMonoid];
+    node = MapMonoidNode<F>;
+    monoid = F::M;
+}
 impl_range_apply! {
     tree = RBLazySegtree<F> where [F: MapMonoid];
     node = MapMonoidNode<F> where [F: MapMonoid];
@@ -395,11 +396,6 @@ impl_tree! {
     ReversibleRBLazySegtree<F> where [F: MapMonoid];
     node = ReversibleMapMonoidNode<F>;
 }
-impl_range_fold! {
-    tree = ReversibleRBLazySegtree<F> where [F: MapMonoid];
-    node = ReversibleMapMonoidNode<F>;
-    monoid = F::M;
-}
 
 pub struct ReversibleMapMonoidNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
@@ -455,6 +451,11 @@ impl_node! {
     };
 }
 
+impl_range_fold! {
+    tree = ReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = ReversibleMapMonoidNode<F>;
+    monoid = F::M;
+}
 impl_range_apply! {
     tree = ReversibleRBLazySegtree<F> where [F: MapMonoid];
     node = ReversibleMapMonoidNode<F> where [F: MapMonoid];
@@ -562,6 +563,165 @@ impl_node! {
     };
     val(&self) = {
         self.val.as_ref().unwrap().clone()
+    };
+}
+
+/// モノイドが載る永続平衡二分木.
+pub struct PersistentRBSegtree<M: Monoid> {
+    root: Option<Rc<PersistentMonoidNode<M>>>,
+}
+impl<M: Monoid> Clone for PersistentRBSegtree<M> {
+    fn clone(&self) -> Self {
+        Self {
+            root: self.root.clone(),
+        }
+    }
+}
+impl_tree! {
+    PersistentRBSegtree<M> where [M: Monoid];
+    node = PersistentMonoidNode<M>;
+}
+
+pub struct PersistentMonoidNode<M: Monoid> {
+    val: M::S,
+    base: Base,
+    l: Option<Rc<Self>>,
+    r: Option<Rc<Self>>,
+}
+impl<M: Monoid> Clone for PersistentMonoidNode<M> {
+    fn clone(&self) -> Self {
+        Self {
+            val: self.val.clone(),
+            base: self.base.clone(),
+            l: self.l.clone(),
+            r: self.r.clone(),
+        }
+    }
+}
+impl_node! {
+    PersistentMonoidNode<M> where [M: Monoid];
+    val = M::S;
+    link = Rc<PersistentMonoidNode<M>>;
+    new(l, r, black) = {
+        Rc::new(Self {
+            val: M::binary_operation(&l.val, &r.val),
+            base: Base::new(&l.base, &r.base, black),
+            l: Some(l),
+            r: Some(r),
+        })
+    };
+    new_leaf(val) = {
+        Rc::new(Self {
+            val,
+            base: Base::new_leaf(),
+            l: None,
+            r: None,
+        })
+    };
+    detach(p) = {
+        (p.l.as_ref().unwrap().clone(), p.r.as_ref().unwrap().clone())
+    };
+    make_root(mut p) = {
+        Rc::make_mut(&mut p).base.make_root();
+        p
+    };
+    val(&self) = {
+        self.val.clone()
+    };
+}
+
+impl_range_fold! {
+    tree = PersistentRBSegtree<M> where [M: Monoid];
+    node = PersistentMonoidNode<M>;
+    monoid = M;
+}
+
+/// 作用素モノイドが載る永続平衡二分木.
+pub struct PersistentRBLazySegtree<F: MapMonoid> {
+    root: Option<Rc<PersistentMapMonoidNode<F>>>,
+}
+impl<F: MapMonoid> Clone for PersistentRBLazySegtree<F> {
+    fn clone(&self) -> Self {
+        Self {
+            root: self.root.clone(),
+        }
+    }
+}
+impl_tree! {
+    PersistentRBLazySegtree<F> where [F: MapMonoid];
+    node = PersistentMapMonoidNode<F>;
+}
+
+pub struct PersistentMapMonoidNode<F: MapMonoid> {
+    val: <F::M as Monoid>::S,
+    base: Base,
+    l: Option<Rc<Self>>,
+    r: Option<Rc<Self>>,
+    lazy: F::F,
+}
+impl<F: MapMonoid> Clone for PersistentMapMonoidNode<F> {
+    fn clone(&self) -> Self {
+        Self {
+            val: self.val.clone(),
+            base: self.base.clone(),
+            l: self.l.clone(),
+            r: self.r.clone(),
+            lazy: self.lazy.clone(),
+        }
+    }
+}
+impl_node! {
+    PersistentMapMonoidNode<F> where [F: MapMonoid];
+    val = <F::M as Monoid>::S;
+    link = Rc<PersistentMapMonoidNode<F>>;
+    new(l, r, black) = {
+        Rc::new(Self {
+            val: F::binary_operation(&l.val, &r.val),
+            base: Base::new(&l.base, &r.base, black),
+            l: Some(l),
+            r: Some(r),
+            lazy: F::identity_map(),
+        })
+    };
+    new_leaf(val) = {
+        Rc::new(Self {
+            val,
+            base: Base::new_leaf(),
+            l: None,
+            r: None,
+            lazy: F::identity_map(),
+        })
+    };
+    detach(p) = {
+        let (mut l, mut r) = (p.l.as_ref().unwrap().clone(), p.r.as_ref().unwrap().clone());
+        Rc::make_mut(&mut l).val = F::mapping(&p.lazy, &l.val);
+        Rc::make_mut(&mut r).val = F::mapping(&p.lazy, &r.val);
+        Rc::make_mut(&mut l).lazy = F::composition(&p.lazy, &l.lazy);
+        Rc::make_mut(&mut r).lazy = F::composition(&p.lazy, &r.lazy);
+        (l, r)
+    };
+    make_root(mut p) = {
+        Rc::make_mut(&mut p).base.make_root();
+        p
+    };
+    val(&self) = {
+        self.val.clone()
+    };
+}
+
+impl_range_fold! {
+    tree = PersistentRBLazySegtree<F> where [F: MapMonoid];
+    node = PersistentMapMonoidNode<F>;
+    monoid = F::M;
+}
+impl_range_apply! {
+    tree = PersistentRBLazySegtree<F> where [F: MapMonoid];
+    node = PersistentMapMonoidNode<F> where [F: MapMonoid];
+    map_monoid = F;
+    apply(f, mut p) = {
+        Rc::make_mut(&mut p).val = F::mapping(&f, &p.val);
+        Rc::make_mut(&mut p).lazy = F::composition(&f, &p.lazy);
+        p
     };
 }
 

@@ -253,8 +253,8 @@ pub trait Tree: Root + Sized {
     }
     /// [0,n) => [0,k), [k,n)
     fn split(&mut self, k: usize) -> Self
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         assert!(k <= self.len());
         let root = mem::replace(self.root(), None);
@@ -287,9 +287,9 @@ pub trait Tree: Root + Sized {
 
 pub use crate::algebra::Monoid;
 pub trait RangeFold<M, T>: Tree<Node = T>
-    where
-        M: Monoid,
-        T: Node<Value = M::S>,
+where
+    M: Monoid,
+    T: Node<Value = M::S>,
 {
     fn prod(&mut self, l: usize, r: usize) -> M::S {
         assert!(l <= r && r <= self.len());
@@ -313,9 +313,9 @@ pub trait Apply<F: MapMonoid>: Node<Value = <F::M as Monoid>::S> {
 }
 
 pub trait RangeApply<F, T>: Tree<Node = T>
-    where
-        F: MapMonoid,
-        T: Apply<F>,
+where
+    F: MapMonoid,
+    T: Apply<F>,
 {
     fn apply_range(&mut self, l: usize, r: usize, f: F::F) {
         assert!(l <= r && r <= self.len());

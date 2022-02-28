@@ -381,22 +381,26 @@ macro_rules! impl_node {
     };
 }
 macro_rules! impl_apply {
-    ($node:ident<$param:ident : $bound:tt>, $map_monoid:ty) => {
-        impl<$param: $bound> Apply<$map_monoid> for $node<$param> {
-            fn apply(mut p: <Self as Node>::Link, f: <$map_monoid>::F) -> <Self as Node>::Link {
-                p.val = <$map_monoid>::mapping(&f, &p.val());
-                p.lazy = <$map_monoid>::composition(&f, &p.lazy);
-                p
+    (
+        $node:ty where [$($params:tt)*];
+        map_monoid = $map_monoid:ident;
+        apply($f:ident, $($p:tt)*) = $apply:block;
+    ) => {
+        impl<$($params)*> Apply<$map_monoid> for $node {
+            fn apply($($p)*: <Self as Node>::Link, $f: <$map_monoid>::F) -> <Self as Node>::Link {
+                $apply
             }
         }
     };
 }
 macro_rules! impl_reverse {
-    ($node:ident<$param:ident : $bound:tt>) => {
-        impl<$param: $bound> Reverse for $node<$param> {
-            fn reverse(mut p: <Self as Node>::Link) -> <Self as Node>::Link {
-                p.rev ^= true;
-                p
+    (
+        $node:ty where [$($params:tt)*];
+        reverse($($p:tt)*) = $reverse:block;
+    ) => {
+        impl<$($params)*> Reverse for $node {
+            fn reverse($($p)*: <Self as Node>::Link) -> <Self as Node>::Link {
+                $reverse
             }
         }
     };
@@ -661,7 +665,15 @@ impl_node! {
         self.val.clone()
     };
 }
-impl_apply!(MapMonoidNode<F: MapMonoid>, F);
+impl_apply! {
+    MapMonoidNode<F> where [F: MapMonoid];
+    map_monoid = F;
+    apply(f, mut p) = {
+        p.val = F::mapping(&f, &p.val);
+        p.lazy = F::composition(&f, &p.lazy);
+        p
+    };
+}
 
 /// 作用素モノイドが載る, 区間反転が可能な平衡二分木.
 /// 挿入, 削除, 区間取得, 区間作用, 分割, 統合, 区間反転 を O(log n) で行う.
@@ -766,8 +778,22 @@ impl_node! {
         self.val.clone()
     };
 }
-impl_apply!(ReversibleMapMonoidNode<F: MapMonoid>, F);
-impl_reverse!(ReversibleMapMonoidNode<F: MapMonoid>);
+impl_apply! {
+    ReversibleMapMonoidNode<F> where [F: MapMonoid];
+    map_monoid = F;
+    apply(f, mut p) = {
+        p.val = F::mapping(&f, &p.val);
+        p.lazy = F::composition(&f, &p.lazy);
+        p
+    };
+}
+impl_reverse! {
+    ReversibleMapMonoidNode<F> where [F: MapMonoid];
+    reverse(mut p) = {
+        p.rev ^= true;
+        p
+    };
+}
 
 use std::rc::Rc;
 
@@ -798,21 +824,36 @@ use std::rc::Rc;
 /// t.merge(&mut s);  // [30, 40, 10, 30, 30, 40, 10, 30]
 /// assert_eq!(t.collect_vec(), vec![30, 40, 10, 30, 30, 40, 10, 30]);
 /// ```
-#[derive(Clone)]
 pub struct PersistentRBTree<U> {
     root: Option<Rc<PersistentOptionNode<U>>>,
+}
+impl<U> Clone for PersistentRBTree<U> {
+    fn clone(&self) -> Self {
+        Self {
+            root: self.root.clone(),
+        }
+    }
 }
 impl_tree! {
     PersistentRBTree<U> where [U: Clone];
     node = PersistentOptionNode<U>;
 }
 
-#[derive(Clone)]
 pub struct PersistentOptionNode<U> {
     val: Option<U>,
     base: Base,
     l: Option<Rc<Self>>,
     r: Option<Rc<Self>>,
+}
+impl<U: Clone> Clone for PersistentOptionNode<U> {
+    fn clone(&self) -> Self {
+        Self {
+            val: self.val.clone(),
+            base: self.base.clone(),
+            l: self.l.clone(),
+            r: self.r.clone(),
+        }
+    }
 }
 impl_node! {
     PersistentOptionNode<U> where [U: Clone];
@@ -843,5 +884,159 @@ impl_node! {
     };
     val(&self) = {
         self.val.as_ref().unwrap().clone()
+    };
+}
+
+/// 作用素モノイドが載る, 区間反転が可能な永続平衡二分木.
+/// 挿入, 削除, 区間取得, 区間作用, 分割, 統合, 区間反転 を O(log n), clone を O(1) で行う.
+///
+/// # Example
+/// ```
+/// use my_library_rs::*;
+/// use std::cmp::min;
+///
+/// pub struct RangeMin;
+/// impl Monoid for RangeMin
+/// {
+///     type S = u32;
+///     fn identity() -> Self::S { Self::S::max_value() }
+///     fn binary_operation(&a: &Self::S, &b: &Self::S) -> Self::S { min(a, b) }
+/// }
+/// struct RangeAddRangeMin;
+/// impl MapMonoid for RangeAddRangeMin {
+///     type M = RangeMin;
+///     type F = u32;
+///
+///     fn identity_map() -> Self::F { 0 }
+///     fn mapping(&f: &Self::F, &a: &<Self::M as Monoid>::S) -> <Self::M as Monoid>::S { a + f }
+///     fn composition(&f: &Self::F, &g: &Self::F) -> Self::F { f + g }
+/// }
+///
+/// let mut seg: PersistentReversibleRBLazySegtree<RangeAddRangeMin> = vec![1, 100, 0, 1000].into();
+/// assert_eq!(seg.remove(2), 0);  // [1, 100, 1000]
+/// seg.insert(1, 10);  // [1, 10, 100, 1000]
+///
+/// assert_eq!((seg.prod(0, 4), seg.prod(0, 3), seg.prod(1, 2)), (1, 1, 10));
+///
+/// seg.apply_range(2, 4, 20);  // [1, 10, 120, 1020]
+/// seg.apply_range(0, 3, 3000);   // [3001, 3010, 3120, 1020]
+/// assert_eq!(seg.collect_vec(), vec![3001, 3010, 3120, 1020]);
+///
+/// seg.reverse_range(1, 4); // [3001, 1020, 3120, 3010];
+/// seg.reverse_range(0, 2); // [1020, 3001, 3120, 3010];
+/// assert_eq!(seg.collect_vec(), vec![1020, 3001, 3120, 3010]);
+///
+/// let mut t = seg.clone();
+/// seg.merge(&mut t);  // [1020, 3001, 3120, 3010, 1020, 3001, 3120, 3010]
+/// seg.apply_range(2, 5, 50000);  // [1020, 3001, 53120, 53010, 51020, 3001, 3120, 3010]
+/// seg.reverse_range(1, 6);  // [1020, 3001, 51020, 53010, 53120, 3001, 3120, 3010]
+/// assert_eq!(seg.collect_vec(), vec![1020, 3001, 51020, 53010, 53120, 3001, 3120, 3010]);
+/// ```
+pub struct PersistentReversibleRBLazySegtree<F: MapMonoid> {
+    root: Option<Rc<PersistentReversibleMapMonoidNode<F>>>,
+}
+impl<F: MapMonoid> Clone for PersistentReversibleRBLazySegtree<F> {
+    fn clone(&self) -> Self {
+        Self {
+            root: self.root.clone(),
+        }
+    }
+}
+impl_tree! {
+    PersistentReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = PersistentReversibleMapMonoidNode<F>;
+}
+impl<F: MapMonoid> RangeFold<F::M, PersistentReversibleMapMonoidNode<F>>
+    for PersistentReversibleRBLazySegtree<F>
+{
+}
+impl<F: MapMonoid> RangeApply<F, PersistentReversibleMapMonoidNode<F>>
+    for PersistentReversibleRBLazySegtree<F>
+{
+}
+impl<F: MapMonoid> RangeReverse<PersistentReversibleMapMonoidNode<F>>
+    for PersistentReversibleRBLazySegtree<F>
+{
+}
+
+pub struct PersistentReversibleMapMonoidNode<F: MapMonoid> {
+    val: <F::M as Monoid>::S,
+    base: Base,
+    l: Option<Rc<Self>>,
+    r: Option<Rc<Self>>,
+    lazy: F::F,
+    rev: bool,
+}
+impl<F: MapMonoid> Clone for PersistentReversibleMapMonoidNode<F> {
+    fn clone(&self) -> Self {
+        Self {
+            val: self.val.clone(),
+            base: self.base.clone(),
+            l: self.l.clone(),
+            r: self.r.clone(),
+            lazy: self.lazy.clone(),
+            rev: self.rev.clone(),
+        }
+    }
+}
+impl_node! {
+    PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
+    val = <F::M as Monoid>::S;
+    link = Rc<PersistentReversibleMapMonoidNode<F>>;
+    new(l, r, black) = {
+        Rc::new(Self {
+            val: F::binary_operation(&l.val, &r.val),
+            base: Base::new(&l.base, &r.base, black),
+            l: Some(l),
+            r: Some(r),
+            lazy: F::identity_map(),
+            rev: false,
+        })
+    };
+    new_leaf(val) = {
+        Rc::new(Self {
+            val,
+            base: Base::new_leaf(),
+            l: None,
+            r: None,
+            lazy: F::identity_map(),
+            rev: false,
+        })
+    };
+    detach(p) = {
+        let (mut l, mut r) = (p.l.as_ref().unwrap().clone(), p.r.as_ref().unwrap().clone());
+        Rc::make_mut(&mut l).val = F::mapping(&p.lazy, &l.val);
+        Rc::make_mut(&mut r).val = F::mapping(&p.lazy, &r.val);
+        Rc::make_mut(&mut l).lazy = F::composition(&p.lazy, &l.lazy);
+        Rc::make_mut(&mut r).lazy = F::composition(&p.lazy, &r.lazy);
+        Rc::make_mut(&mut l).rev ^= p.rev;
+        Rc::make_mut(&mut r).rev ^= p.rev;
+        if p.rev {
+            return (r, l);
+        }
+        (l, r)
+    };
+    make_root(mut p) = {
+        Rc::make_mut(&mut p).base.make_root();
+        p
+    };
+    val(&self) = {
+        self.val.clone()
+    };
+}
+impl_apply! {
+    PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
+    map_monoid = F;
+    apply(f, mut p) = {
+        Rc::make_mut(&mut p).val = F::mapping(&f, &p.val);
+        Rc::make_mut(&mut p).lazy = F::composition(&f, &p.lazy);
+        p
+    };
+}
+impl_reverse! {
+    PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
+    reverse(mut p) = {
+        Rc::make_mut(&mut p).rev ^= true;
+        p
     };
 }

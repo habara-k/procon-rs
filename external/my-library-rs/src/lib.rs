@@ -12,8 +12,8 @@ pub use geometry::{area_x2, convex_hull, cross, Point};
 pub use graph::{dijkstra, Edge};
 pub use math::{subset_zeta_transform, Factorial};
 pub use rbtree::{
-    RBLazySegtree, RBSegtree, RBTree, RangeApply, RangeFold, RangeReverse, ReversibleRBLazySegtree,
-    Tree, PersistentRBTree,
+    PersistentRBTree, PersistentReversibleRBLazySegtree, RBLazySegtree, RBSegtree, RBTree,
+    RangeApply, RangeFold, RangeReverse, ReversibleRBLazySegtree, Tree,
 };
 pub use rolling_hash::RollingHash;
 pub use tree::HLD;

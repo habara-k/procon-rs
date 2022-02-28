@@ -28,12 +28,11 @@ impl Base {
     fn is_leaf(&self) -> bool {
         self.black && self.height == 1
     }
-    fn into_root(mut self) -> Self {
+    fn make_root(&mut self) {
         if !self.black {
             self.black = true;
             self.height += 1;
         }
-        self
     }
 }
 
@@ -344,8 +343,8 @@ macro_rules! impl_node {
         link = $link_type:ty;
         new($l:ident, $r:ident, $black:ident) = $new:block;
         new_leaf($new_val:ident) = $new_leaf:block;
-        detach($p1:ident) = $detach:block;
-        make_root($p2:ident) = $make_root:block;
+        detach($($p1:tt)*) = $detach:block;
+        make_root($($p2:tt)*) = $make_root:block;
         val(&$self:ident) = $get_val:block;
     ) => {
         impl<$($params)*> Node for $node {
@@ -357,10 +356,10 @@ macro_rules! impl_node {
             fn new_leaf($new_val: Self::Value) -> Self::Link {
                 $new_leaf
             }
-            fn detach($p1: Self::Link) -> (Self::Link, Self::Link) {
+            fn detach($($p1)*: Self::Link) -> (Self::Link, Self::Link) {
                 $detach
             }
-            fn make_root($p2: Self::Link) -> Self::Link {
+            fn make_root($($p2)*: Self::Link) -> Self::Link {
                 $make_root
             }
             fn val(&$self) -> Self::Value {
@@ -494,16 +493,11 @@ impl_node! {
         })
     };
     detach(p) = {
-        assert!(!p.base.is_leaf());
         (p.l.unwrap(), p.r.unwrap())
     };
-    make_root(p) = {
-        Box::new(Self {
-            val: p.val,
-            base: p.base.into_root(),
-            l: p.l,
-            r: p.r,
-        })
+    make_root(mut p) = {
+        p.base.make_root();
+        p
     };
     val(&self) = {
         self.val.as_ref().unwrap().clone()
@@ -568,13 +562,9 @@ impl_node! {
     detach(p) = {
         (p.l.unwrap(), p.r.unwrap())
     };
-    make_root(p) = {
-        Box::new(Self {
-            val: p.val,
-            base: p.base.into_root(),
-            l: p.l,
-            r: p.r,
-        })
+    make_root(mut p) = {
+        p.base.make_root();
+        p
     };
     val(&self) = {
         self.val.clone()
@@ -663,14 +653,9 @@ impl_node! {
         r.lazy = F::composition(&p.lazy, &r.lazy);
         (l, r)
     };
-    make_root(p) = {
-        Box::new(Self {
-            val: p.val,
-            base: p.base.into_root(),
-            l: p.l,
-            r: p.r,
-            lazy: p.lazy,
-        })
+    make_root(mut p) = {
+        p.base.make_root();
+        p
     };
     val(&self) = {
         self.val.clone()
@@ -773,15 +758,9 @@ impl_node! {
         }
         (l, r)
     };
-    make_root(p) = {
-        Box::new(Self {
-            val: p.val,
-            base: p.base.into_root(),
-            l: p.l,
-            r: p.r,
-            lazy: p.lazy,
-            rev: p.rev,
-        })
+    make_root(mut p) = {
+        p.base.make_root();
+        p
     };
     val(&self) = {
         self.val.clone()
@@ -793,7 +772,7 @@ impl_reverse!(ReversibleMapMonoidNode<F: MapMonoid>);
 use std::rc::Rc;
 
 /// 列を管理する永続平衡二分木.
-/// 挿入, 削除, 取得, 分割, 統合, clone を O(log n) で行う.
+/// 挿入, 削除, 取得, 分割, 統合 を O(log n), clone を O(1) で行う.
 ///
 /// # Example
 /// ```
@@ -828,6 +807,7 @@ impl_tree! {
     node = PersistentOptionNode<U>;
 }
 
+#[derive(Clone)]
 pub struct PersistentOptionNode<U> {
     val: Option<U>,
     base: Base,
@@ -857,13 +837,9 @@ impl_node! {
     detach(p) = {
         (p.l.as_ref().unwrap().clone(), p.r.as_ref().unwrap().clone())
     };
-    make_root(p) = {
-        Rc::new(Self {
-            base: p.base.clone().into_root(),
-            val: p.val.clone(),
-            l: p.l.clone(),
-            r: p.r.clone(),
-        })
+    make_root(mut p) = {
+        Rc::make_mut(&mut p).base.make_root();
+        p
     };
     val(&self) = {
         self.val.as_ref().unwrap().clone()

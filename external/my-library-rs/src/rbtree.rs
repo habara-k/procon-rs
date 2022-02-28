@@ -35,6 +35,18 @@ macro_rules! impl_node {
         }
     };
 }
+macro_rules! impl_persistent_node {
+    (
+        $node:ty where [$($params:tt)*];
+        clone(&$self:ident) = $clone:block;
+    ) => {
+        impl<$($params)*> Clone for $node {
+            fn clone(&$self) -> Self {
+                $clone
+            }
+        }
+    };
+}
 
 macro_rules! impl_tree {
     (
@@ -61,6 +73,19 @@ macro_rules! impl_tree {
         impl<$($params)*> Default for $tree {
             fn default() -> Self {
                 Self { root: None }
+            }
+        }
+    };
+}
+macro_rules! impl_persistent_tree {
+    (
+        $tree:ty where [$($params:tt)*];
+    ) => {
+        impl<$($params)*> Clone for $tree {
+            fn clone(&self) -> Self {
+                Self {
+                    root: self.root.clone()
+                }
             }
         }
     };
@@ -493,29 +518,17 @@ impl<T: Node<Link = Rc<T>>> Clone for Base<T> {
 pub struct PersistentRBTree<U: Clone> {
     root: Option<Rc<PersistentOptionNode<U>>>,
 }
-impl<U: Clone> Clone for PersistentRBTree<U> {
-    fn clone(&self) -> Self {
-        Self {
-            root: self.root.clone(),
-        }
-    }
-}
 impl_tree! {
     PersistentRBTree<U> where [U: Clone];
     node = PersistentOptionNode<U>;
+}
+impl_persistent_tree! {
+    PersistentRBTree<U> where [U: Clone];
 }
 
 pub struct PersistentOptionNode<U: Clone> {
     val: Option<U>,
     base: Base<Self>,
-}
-impl<U: Clone> Clone for PersistentOptionNode<U> {
-    fn clone(&self) -> Self {
-        Self {
-            val: self.val.clone(),
-            base: self.base.clone(),
-        }
-    }
 }
 impl_node! {
     PersistentOptionNode<U> where [U: Clone];
@@ -544,34 +557,31 @@ impl_node! {
         self.val.as_ref().unwrap().clone()
     };
 }
+impl_persistent_node! {
+    PersistentOptionNode<U> where [U: Clone];
+    clone(&self) = {
+        Self {
+            val: self.val.clone(),
+            base: self.base.clone(),
+        }
+    };
+}
 
 /// モノイドが載る永続平衡二分木.
 pub struct PersistentRBSegtree<M: Monoid> {
     root: Option<Rc<PersistentMonoidNode<M>>>,
 }
-impl<M: Monoid> Clone for PersistentRBSegtree<M> {
-    fn clone(&self) -> Self {
-        Self {
-            root: self.root.clone(),
-        }
-    }
-}
 impl_tree! {
     PersistentRBSegtree<M> where [M: Monoid];
     node = PersistentMonoidNode<M>;
+}
+impl_persistent_tree! {
+    PersistentRBSegtree<M> where [M: Monoid];
 }
 
 pub struct PersistentMonoidNode<M: Monoid> {
     val: M::S,
     base: Base<Self>,
-}
-impl<M: Monoid> Clone for PersistentMonoidNode<M> {
-    fn clone(&self) -> Self {
-        Self {
-            val: self.val.clone(),
-            base: self.base.clone(),
-        }
-    }
 }
 impl_node! {
     PersistentMonoidNode<M> where [M: Monoid];
@@ -600,6 +610,15 @@ impl_node! {
         self.val.clone()
     };
 }
+impl_persistent_node! {
+    PersistentMonoidNode<M> where [M: Monoid];
+    clone(&self) = {
+        Self {
+            val: self.val.clone(),
+            base: self.base.clone(),
+        }
+    };
+}
 
 impl_range_fold! {
     tree = PersistentRBSegtree<M> where [M: Monoid];
@@ -611,31 +630,18 @@ impl_range_fold! {
 pub struct PersistentRBLazySegtree<F: MapMonoid> {
     root: Option<Rc<PersistentMapMonoidNode<F>>>,
 }
-impl<F: MapMonoid> Clone for PersistentRBLazySegtree<F> {
-    fn clone(&self) -> Self {
-        Self {
-            root: self.root.clone(),
-        }
-    }
-}
 impl_tree! {
     PersistentRBLazySegtree<F> where [F: MapMonoid];
     node = PersistentMapMonoidNode<F>;
+}
+impl_persistent_tree! {
+    PersistentRBLazySegtree<F> where [F: MapMonoid];
 }
 
 pub struct PersistentMapMonoidNode<F: MapMonoid> {
     val: <F::M as Monoid>::S,
     lazy: F::F,
     base: Base<Self>,
-}
-impl<F: MapMonoid> Clone for PersistentMapMonoidNode<F> {
-    fn clone(&self) -> Self {
-        Self {
-            val: self.val.clone(),
-            lazy: self.lazy.clone(),
-            base: self.base.clone(),
-        }
-    }
 }
 impl_node! {
     PersistentMapMonoidNode<F> where [F: MapMonoid];
@@ -669,6 +675,16 @@ impl_node! {
     };
     val(&self) = {
         self.val.clone()
+    };
+}
+impl_persistent_node! {
+    PersistentMapMonoidNode<F> where [F: MapMonoid];
+    clone(&self) = {
+        Self {
+            val: self.val.clone(),
+            lazy: self.lazy.clone(),
+            base: self.base.clone(),
+        }
     };
 }
 
@@ -736,16 +752,12 @@ impl_range_apply! {
 pub struct PersistentReversibleRBLazySegtree<F: MapMonoid> {
     root: Option<Rc<PersistentReversibleMapMonoidNode<F>>>,
 }
-impl<F: MapMonoid> Clone for PersistentReversibleRBLazySegtree<F> {
-    fn clone(&self) -> Self {
-        Self {
-            root: self.root.clone(),
-        }
-    }
-}
 impl_tree! {
     PersistentReversibleRBLazySegtree<F> where [F: MapMonoid];
     node = PersistentReversibleMapMonoidNode<F>;
+}
+impl_persistent_tree! {
+    PersistentReversibleRBLazySegtree<F> where [F: MapMonoid];
 }
 
 pub struct PersistentReversibleMapMonoidNode<F: MapMonoid> {
@@ -753,16 +765,6 @@ pub struct PersistentReversibleMapMonoidNode<F: MapMonoid> {
     lazy: F::F,
     rev: bool,
     base: Base<Self>,
-}
-impl<F: MapMonoid> Clone for PersistentReversibleMapMonoidNode<F> {
-    fn clone(&self) -> Self {
-        Self {
-            val: self.val.clone(),
-            lazy: self.lazy.clone(),
-            rev: self.rev.clone(),
-            base: self.base.clone(),
-        }
-    }
 }
 impl_node! {
     PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
@@ -803,6 +805,17 @@ impl_node! {
     };
     val(&self) = {
         self.val.clone()
+    };
+}
+impl_persistent_node! {
+    PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
+    clone(&self) = {
+        Self {
+            val: self.val.clone(),
+            lazy: self.lazy.clone(),
+            rev: self.rev.clone(),
+            base: self.base.clone(),
+        }
     };
 }
 

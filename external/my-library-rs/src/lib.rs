@@ -16,6 +16,5 @@ pub use rbtree::{
     PersistentRBLazySegtree, PersistentRBSegtree, PersistentRBTree,
     PersistentReversibleRBLazySegtree, RBLazySegtree, RBSegtree, RBTree, ReversibleRBLazySegtree,
 };
-pub use rbtree_traits::{RangeApply, RangeFold, RangeReverse, Tree, BinarySearch};
 pub use rolling_hash::RollingHash;
 pub use tree::HLD;

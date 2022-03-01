@@ -1,3 +1,7 @@
+use crate::algebra::{MapMonoid, Monoid};
+use std::mem;
+use std::ops::Deref;
+
 const RED: bool = false;
 const BLACK: bool = true;
 
@@ -9,8 +13,11 @@ pub struct Base<T: Node> {
     size: usize,
 }
 
-use std::rc::Rc;
-impl<T: Node<Link = Rc<T>>> Clone for Base<T> {
+impl<T, L> Clone for Base<T>
+where
+    T: Node<Link = L>,
+    L: Deref<Target = T> + Clone,
+{
     fn clone(&self) -> Self {
         Self {
             black: self.black,
@@ -67,8 +74,6 @@ impl<T: Node> Base<T> {
         self.size
     }
 }
-
-use std::ops::Deref;
 
 pub trait Node: Sized {
     type Value: Clone;
@@ -257,203 +262,230 @@ pub trait Node: Sized {
     }
 }
 
-pub trait Root {
-    type Node: Node;
-    fn root(&mut self) -> &mut Option<<Self::Node as Node>::Link>;
-    fn new(root: Option<<Self::Node as Node>::Link>) -> Self;
+pub struct Tree<T: Node> {
+    root: Option<T::Link>,
 }
-
-use std::mem;
-pub trait Tree: Root + Sized {
-    /// 要素数を返す.
-    fn len(&mut self) -> usize {
-        Self::Node::len(self.root())
+impl<T: Node> Tree<T> {
+    fn new(root: Option<T::Link>) -> Self {
+        Self { root }
     }
-    /// `k` 番目に `val` を挿入する.
-    fn insert(&mut self, k: usize, val: <Self::Node as Node>::Value) {
+    pub fn len(&mut self) -> usize {
+        T::len(&self.root)
+    }
+    pub fn insert(&mut self, k: usize, val: T::Value) {
         assert!(k <= self.len());
-        let root = mem::replace(self.root(), None);
-        *self.root() = Self::Node::insert(root, k, val);
+        let root = mem::replace(&mut self.root, None);
+        self.root = T::insert(root, k, val);
     }
-    /// `k` 番目の要素を削除し, その値を返す.
-    fn remove(&mut self, k: usize) -> <Self::Node as Node>::Value {
+    pub fn remove(&mut self, k: usize) -> T::Value {
         assert!(k < self.len());
-        let root = mem::replace(self.root(), None);
-        let (root, val) = Self::Node::remove(root, k);
-        *self.root() = root;
+        let root = mem::replace(&mut self.root, None);
+        let (root, val) = T::remove(root, k);
+        self.root = root;
         val
     }
-    /// [0,n) => [0,k), [k,n)
-    fn split(mut self, k: usize) -> (Self, Self) {
+    pub fn split(mut self, k: usize) -> (Self, Self) {
         assert!(k <= self.len());
-        let root = mem::replace(self.root(), None);
-        let (l, r) = Self::Node::split(root, k);
+        let root = mem::replace(&mut self.root, None);
+        let (l, r) = T::split(root, k);
         (Self::new(l), Self::new(r))
     }
-    /// [0,n) => [0,l), [l,r), [r,n)
-    fn split_range(mut self, l: usize, r: usize) -> (Self, Self, Self) {
+    pub fn split_range(mut self, l: usize, r: usize) -> (Self, Self, Self) {
         assert!(l <= r && r <= self.len());
-        let root = mem::replace(self.root(), None);
-        let (a, b, c) = Self::Node::split_range(root, l, r);
+        let root = mem::replace(&mut self.root, None);
+        let (a, b, c) = T::split_range(root, l, r);
         (Self::new(a), Self::new(b), Self::new(c))
     }
-    /// [0,k), [k,n) => [0,n)
-    fn merge(&mut self, other: &mut Self) {
-        let root = mem::replace(self.root(), None);
-        *self.root() = Self::Node::merge(root, mem::replace(other.root(), None));
+    pub fn merge(&mut self, other: &mut Self) {
+        let root = mem::replace(&mut self.root, None);
+        self.root = T::merge(root, mem::replace(&mut other.root, None));
     }
-    /// `k` 番目の要素を返す.
-    fn get(&mut self, k: usize) -> <Self::Node as Node>::Value {
+    pub fn get(&mut self, k: usize) -> T::Value {
         assert!(k < self.len());
         let val = self.remove(k);
         self.insert(k, val.clone());
         val
     }
-    fn collect_vec(&mut self) -> Vec<<Self::Node as Node>::Value> {
+    pub fn collect_vec(&mut self) -> Vec<T::Value> {
         if self.len() == 0 {
             return vec![];
         }
-        let root = mem::replace(self.root(), None).unwrap();
+        let root = mem::replace(&mut self.root, None).unwrap();
         let mut v = vec![];
-        *self.root() = Some(Self::Node::collect_vec(root, &mut v));
+        self.root = Some(T::collect_vec(root, &mut v));
         v
     }
 }
 
-pub use crate::algebra::Monoid;
-
-pub trait MinLeft<M: Monoid>: Node<Value = M::S> {
-    fn min_left<G: Fn(M::S) -> bool>(p: <Self as Node>::Link, g: G, k: &mut usize, sm: M::S) -> <Self as Node>::Link {
+pub trait MonoidNode: Node<Value = <<Self as MonoidNode>::M as Monoid>::S> {
+    type M: Monoid;
+    fn min_left<G: Fn(<Self::M as Monoid>::S) -> bool>(
+        p: <Self as Node>::Link,
+        g: G,
+        k: &mut usize,
+        sm: <Self::M as Monoid>::S,
+    ) -> <Self as Node>::Link {
         if p.is_leaf() {
-            if g(M::binary_operation(&p.val(), &sm)) {
+            if g(<Self::M as Monoid>::binary_operation(&p.val(), &sm)) {
                 *k -= 1;
             }
             return p;
         }
-        let (mut l, mut r) = Self::detach(p);
-        let nxt = M::binary_operation(&r.val(), &sm);
+        let (mut l, mut r) = <Self as Node>::detach(p);
+        let nxt = <Self::M as Monoid>::binary_operation(&r.val(), &sm);
         if g(nxt.clone()) {
             *k -= r.size();
             l = Self::min_left(l, g, k, nxt);
         } else {
             r = Self::min_left(r, g, k, sm);
         }
-        Self::merge(Some(l), Some(r)).unwrap()
+        <Self as Node>::merge(Some(l), Some(r)).unwrap()
     }
-}
-pub trait MaxRight<M: Monoid>: Node<Value = M::S> {
-    fn max_right<G: Fn(M::S) -> bool>(p: <Self as Node>::Link, g: G, k: &mut usize, sm: M::S) -> <Self as Node>::Link {
+
+    fn max_right<G: Fn(<Self::M as Monoid>::S) -> bool>(
+        p: <Self as Node>::Link,
+        g: G,
+        k: &mut usize,
+        sm: <Self::M as Monoid>::S,
+    ) -> <Self as Node>::Link {
         if p.is_leaf() {
-            if g(M::binary_operation(&sm, &p.val())) {
+            if g(<Self::M as Monoid>::binary_operation(&sm, &p.val())) {
                 *k += 1;
             }
             return p;
         }
-        let (mut l, mut r) = Self::detach(p);
-        let nxt = M::binary_operation(&sm, &l.val());
+        let (mut l, mut r) = <Self as Node>::detach(p);
+        let nxt = <Self::M as Monoid>::binary_operation(&sm, &l.val());
         if g(nxt.clone()) {
             *k += l.size();
             r = Self::max_right(r, g, k, nxt);
         } else {
             l = Self::max_right(l, g, k, sm);
         }
-        Self::merge(Some(l), Some(r)).unwrap()
+        <Self as Node>::merge(Some(l), Some(r)).unwrap()
     }
 }
-pub trait BinarySearch<M, T>: Tree<Node = T>
-where
-    M: Monoid,
-    T: MinLeft<M> + MaxRight<M>,
-{
-    fn min_left<G: Fn(M::S) -> bool>(&mut self, r: usize, g: G) -> usize {
-        assert!(g(M::identity()));
+
+impl<T: MonoidNode> Tree<T> {
+    pub fn min_left<G: Fn(<T::M as Monoid>::S) -> bool>(&mut self, r: usize, g: G) -> usize {
+        assert!(g(<T::M as Monoid>::identity()));
         assert!(r <= self.len());
         if r == 0 {
             return r;
         }
-        let root = mem::replace(self.root(), None);
-        let (mut a, b) = Self::Node::split(root, r);
+        let root = mem::replace(&mut self.root, None);
+        let (mut a, b) = T::split(root, r);
 
         let mut k = r;
-        a = Some(T::min_left(a.unwrap(), g, &mut k, M::identity()));
-        *self.root() = T::merge(a, b);
+        a = Some(T::min_left(
+            a.unwrap(),
+            g,
+            &mut k,
+            <T::M as Monoid>::identity(),
+        ));
+        self.root = T::merge(a, b);
         k
     }
-    fn max_right<G: Fn(M::S) -> bool>(&mut self, l: usize, g: G) -> usize {
-        assert!(g(M::identity()));
+
+    pub fn max_right<G: Fn(<T::M as Monoid>::S) -> bool>(&mut self, l: usize, g: G) -> usize {
+        assert!(g(<T::M as Monoid>::identity()));
         assert!(l <= self.len());
         if l == self.len() {
             return l;
         }
-        let root = mem::replace(self.root(), None);
-        let (a, mut b) = Self::Node::split(root, l);
+        let root = mem::replace(&mut self.root, None);
+        let (a, mut b) = T::split(root, l);
 
         let mut k = l;
-        b = Some(T::max_right(b.unwrap(), g, &mut k, M::identity()));
-        *self.root() = T::merge(a, b);
+        b = Some(T::max_right(
+            b.unwrap(),
+            g,
+            &mut k,
+            <T::M as Monoid>::identity(),
+        ));
+        self.root = T::merge(a, b);
         k
     }
-}
 
-pub trait RangeFold<M, T>: Tree<Node = T>
-where
-    M: Monoid,
-    T: Node<Value = M::S>,
-{
-    fn prod(&mut self, l: usize, r: usize) -> M::S {
+    pub fn prod(&mut self, l: usize, r: usize) -> <T::M as Monoid>::S {
         assert!(l <= r && r <= self.len());
         if l == r {
-            return M::identity();
+            return <T::M as Monoid>::identity();
         }
 
-        let root = mem::replace(self.root(), None);
+        let root = mem::replace(&mut self.root, None);
         let (a, b, c) = T::split_range(root, l, r);
 
         let val = b.as_ref().unwrap().val();
 
-        *self.root() = T::merge(Self::Node::merge(a, b), c);
+        self.root = T::merge(T::merge(a, b), c);
         val
     }
 }
 
-pub use crate::algebra::MapMonoid;
-pub trait Apply<F: MapMonoid>: Node<Value = <F::M as Monoid>::S> {
-    fn apply(p: <Self as Node>::Link, f: F::F) -> <Self as Node>::Link;
+pub trait MapMonoidNode:
+    Node<Value = <<<Self as MapMonoidNode>::F as MapMonoid>::M as Monoid>::S>
+{
+    type F: MapMonoid;
+    fn apply(p: <Self as Node>::Link, f: <Self::F as MapMonoid>::F) -> <Self as Node>::Link;
 }
 
-pub trait RangeApply<F, T>: Tree<Node = T>
-where
-    F: MapMonoid,
-    T: Apply<F>,
-{
-    fn apply_range(&mut self, l: usize, r: usize, f: F::F) {
+impl<T: MapMonoidNode> Tree<T> {
+    pub fn apply_range(&mut self, l: usize, r: usize, f: <T::F as MapMonoid>::F) {
         assert!(l <= r && r <= self.len());
         if l == r {
             return;
         }
-        let root = mem::replace(self.root(), None);
+        let root = mem::replace(&mut self.root, None);
         let (a, mut b, c) = T::split_range(root, l, r);
 
         b = Some(T::apply(b.unwrap(), f));
 
-        *self.root() = T::merge(Self::Node::merge(a, b), c);
+        self.root = T::merge(T::merge(a, b), c);
     }
 }
 
-pub trait Reverse: Node {
+pub trait ReversibleNode: Node {
     fn reverse(p: <Self as Node>::Link) -> <Self as Node>::Link;
 }
-pub trait RangeReverse<T: Reverse>: Tree<Node = T> {
-    fn reverse_range(&mut self, l: usize, r: usize) {
+
+impl<T: ReversibleNode> Tree<T> {
+    pub fn reverse_range(&mut self, l: usize, r: usize) {
         assert!(l <= r && r <= self.len());
         if l == r {
             return;
         }
-        let root = mem::replace(self.root(), None);
+        let root = mem::replace(&mut self.root, None);
         let (a, mut b, c) = T::split_range(root, l, r);
 
         b = Some(T::reverse(b.unwrap()));
 
-        *self.root() = T::merge(T::merge(a, b), c);
+        self.root = T::merge(T::merge(a, b), c);
+    }
+}
+
+impl<T: Node, L> Clone for Tree<T>
+where
+    T: Node<Link = L>,
+    L: Deref<Target = T> + Clone,
+{
+    fn clone(&self) -> Self {
+        Self::new(self.root.clone())
+    }
+}
+
+impl<T, U> From<Vec<U>> for Tree<T>
+where
+    T: Node<Value = U>,
+    U: Clone,
+{
+    fn from(v: Vec<U>) -> Self {
+        Self::new(T::build(&v, 0, v.len()))
+    }
+}
+
+impl<T: Node> Default for Tree<T> {
+    fn default() -> Self {
+        Self::new(None)
     }
 }

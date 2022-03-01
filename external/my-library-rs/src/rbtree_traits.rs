@@ -44,8 +44,8 @@ impl<T: Node> Base<T> {
     }
     pub fn new_leaf() -> Self {
         Self {
-            black: false,
-            height: 0,
+            black: true,
+            height: 1,
             size: 1,
             l: None,
             r: None,

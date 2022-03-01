@@ -8,7 +8,7 @@ macro_rules! impl_node {
         new($l:ident, $r:ident, $black:ident) = $new:block;
         new_leaf($new_val:ident) = $new_leaf:block;
         detach($($p1:tt)*) = $detach:block;
-        make_root($($p2:tt)*) = $make_root:block;
+        make_black($($p2:tt)*) = $make_black:block;
         val(&$self:ident) = $get_val:block;
     ) => {
         impl<$($params)*> Node for $node {
@@ -23,8 +23,8 @@ macro_rules! impl_node {
             fn detach($($p1)*: Self::Link) -> (Self::Link, Self::Link) {
                 $detach
             }
-            fn make_root($($p2)*: Self::Link) -> Self::Link {
-                $make_root
+            fn make_black($($p2)*: Self::Link) -> Self::Link {
+                $make_black
             }
             fn val(&$self) -> Self::Value {
                 $get_val
@@ -194,8 +194,10 @@ impl_node! {
     detach(p) = {
         p.base.detach()
     };
-    make_root(mut p) = {
-        p.base.make_root();
+    make_black(mut p) = {
+        if !p.base.black() {
+            p.base.make_black();
+        }
         p
     };
     val(&self) = {
@@ -259,8 +261,10 @@ impl_node! {
     detach(p) = {
         p.base.detach()
     };
-    make_root(mut p) = {
-        p.base.make_root();
+    make_black(mut p) = {
+        if !p.base.black() {
+            p.base.make_black();
+        }
         p
     };
     val(&self) = {
@@ -353,8 +357,10 @@ impl_node! {
         r.lazy = F::composition(&p.lazy, &r.lazy);
         (l, r)
     };
-    make_root(mut p) = {
-        p.base.make_root();
+    make_black(mut p) = {
+        if !p.base.black() {
+            p.base.make_black();
+        }
         p
     };
     val(&self) = {
@@ -469,8 +475,10 @@ impl_node! {
         }
         (l, r)
     };
-    make_root(mut p) = {
-        p.base.make_root();
+    make_black(mut p) = {
+        if !p.base.black() {
+            p.base.make_black();
+        }
         p
     };
     val(&self) = {
@@ -507,21 +515,7 @@ impl_range_reverse! {
     };
 }
 
-// 以下永続
-
 use std::rc::Rc;
-impl<T: Node<Link = Rc<T>>> Clone for Base<T> {
-    fn clone(&self) -> Self {
-        Self {
-            black: self.black,
-            height: self.height,
-            size: self.size,
-            l: self.l.clone(),
-            r: self.r.clone(),
-        }
-    }
-}
-
 /// 列を管理する永続平衡二分木.
 /// 挿入, 削除, 分割, 統合 を O(log n), 複製 を O(1) で行う.
 ///
@@ -582,8 +576,10 @@ impl_node! {
     detach(p) = {
         p.base.clone().detach()
     };
-    make_root(mut p) = {
-        Rc::make_mut(&mut p).base.make_root();
+    make_black(mut p) = {
+        if !p.base.black() {
+            Rc::make_mut(&mut p).base.make_black();
+        }
         p
     };
     val(&self) = {
@@ -636,8 +632,10 @@ impl_node! {
     detach(p) = {
         p.base.clone().detach()
     };
-    make_root(mut p) = {
-        Rc::make_mut(&mut p).base.make_root();
+    make_black(mut p) = {
+        if !p.base.black() {
+            Rc::make_mut(&mut p).base.make_black();
+        }
         p
     };
     val(&self) = {
@@ -709,8 +707,10 @@ impl_node! {
         Rc::make_mut(&mut r).lazy = F::composition(&p.lazy, &r.lazy);
         (l, r)
     };
-    make_root(mut p) = {
-        Rc::make_mut(&mut p).base.make_root();
+    make_black(mut p) = {
+        if !p.base.black() {
+            Rc::make_mut(&mut p).base.make_black();
+        }
         p
     };
     val(&self) = {
@@ -844,8 +844,10 @@ impl_node! {
         }
         (l, r)
     };
-    make_root(mut p) = {
-        Rc::make_mut(&mut p).base.make_root();
+    make_black(mut p) = {
+        if !p.base.black() {
+            Rc::make_mut(&mut p).base.make_black();
+        }
         p
     };
     val(&self) = {

@@ -2,11 +2,24 @@ const RED: bool = false;
 const BLACK: bool = true;
 
 pub struct Base<T: Node> {
-    pub l: Option<T::Link>,
-    pub r: Option<T::Link>,
-    pub black: bool,
-    pub height: usize,
-    pub size: usize,
+    l: Option<T::Link>,
+    r: Option<T::Link>,
+    black: bool,
+    height: usize,
+    size: usize,
+}
+
+use std::rc::Rc;
+impl<T: Node<Link = Rc<T>>> Clone for Base<T> {
+    fn clone(&self) -> Self {
+        Self {
+            black: self.black,
+            height: self.height,
+            size: self.size,
+            l: self.l.clone(),
+            r: self.r.clone(),
+        }
+    }
 }
 
 impl<T: Node> Base<T> {
@@ -34,7 +47,7 @@ impl<T: Node> Base<T> {
     pub fn is_leaf(&self) -> bool {
         self.black && self.height == 1
     }
-    pub fn make_root(&mut self) {
+    pub fn make_black(&mut self) {
         if !self.black {
             self.black = true;
             self.height += 1;
@@ -43,6 +56,15 @@ impl<T: Node> Base<T> {
     pub fn detach(self) -> (T::Link, T::Link) {
         assert!(!self.is_leaf());
         (self.l.unwrap(), self.r.unwrap())
+    }
+    pub fn black(&self) -> bool {
+        self.black
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
+    pub fn size(&self) -> usize {
+        self.size
     }
 }
 
@@ -54,18 +76,18 @@ pub trait Node: Sized {
     fn new(l: Self::Link, r: Self::Link, black: bool) -> Self::Link;
     fn new_leaf(val: Self::Value) -> Self::Link;
     fn detach(p: Self::Link) -> (Self::Link, Self::Link);
-    fn make_root(p: Self::Link) -> Self::Link;
+    fn make_black(p: Self::Link) -> Self::Link;
     fn val(&self) -> Self::Value;
     fn base(&self) -> &Base<Self>;
 
     fn black(&self) -> bool {
-        self.base().black
+        self.base().black()
     }
     fn height(&self) -> usize {
-        self.base().height
+        self.base().height()
     }
     fn size(&self) -> usize {
-        self.base().size
+        self.base().size()
     }
     fn is_leaf(&self) -> bool {
         self.base().is_leaf()
@@ -82,7 +104,7 @@ pub trait Node: Sized {
             return a;
         }
         let (a, b) = (a.unwrap(), b.unwrap());
-        Some(Self::merge_sub(Self::make_root(a), Self::make_root(b)))
+        Some(Self::merge_sub(Self::make_black(a), Self::make_black(b)))
     }
     fn merge_sub(a: Self::Link, b: Self::Link) -> Self::Link {
         // # Require
@@ -140,7 +162,7 @@ pub trait Node: Sized {
                 //         (RED,h)  r(RED,h)     =>      (BLACK,h+1)  r(BLACK,h+1)
                 //        /    \                          /     \
                 //   c(RED,h)   lr(BLACK,h)           c(RED,h)   lr(BLACK,h)
-                Self::new(Self::new(c, lr, BLACK), Self::make_root(r), RED)
+                Self::new(Self::new(c, lr, BLACK), Self::make_black(r), RED)
             };
         }
         if a.height() > b.height() {
@@ -159,7 +181,7 @@ pub trait Node: Sized {
             return if l.black() {
                 Self::new(Self::new(l, rl, RED), c, BLACK)
             } else {
-                Self::new(Self::make_root(l), Self::new(rl, c, BLACK), RED)
+                Self::new(Self::make_black(l), Self::new(rl, c, BLACK), RED)
             };
         }
 

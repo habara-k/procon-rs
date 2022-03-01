@@ -299,6 +299,80 @@ pub trait Tree: Root + Sized {
 }
 
 pub use crate::algebra::Monoid;
+
+pub trait MinLeft<M: Monoid>: Node<Value = M::S> {
+    fn min_left<G: Fn(M::S) -> bool>(p: <Self as Node>::Link, g: G, k: &mut usize, sm: M::S) -> <Self as Node>::Link {
+        if p.is_leaf() {
+            if g(M::binary_operation(&p.val(), &sm)) {
+                *k -= 1;
+            }
+            return p;
+        }
+        let (mut l, mut r) = Self::detach(p);
+        let nxt = M::binary_operation(&r.val(), &sm);
+        if g(nxt.clone()) {
+            *k -= r.size();
+            l = Self::min_left(l, g, k, nxt);
+        } else {
+            r = Self::min_left(r, g, k, sm);
+        }
+        Self::merge(Some(l), Some(r)).unwrap()
+    }
+}
+pub trait MaxRight<M: Monoid>: Node<Value = M::S> {
+    fn max_right<G: Fn(M::S) -> bool>(p: <Self as Node>::Link, g: G, k: &mut usize, sm: M::S) -> <Self as Node>::Link {
+        if p.is_leaf() {
+            if g(M::binary_operation(&sm, &p.val())) {
+                *k += 1;
+            }
+            return p;
+        }
+        let (mut l, mut r) = Self::detach(p);
+        let nxt = M::binary_operation(&sm, &l.val());
+        if g(nxt.clone()) {
+            *k += l.size();
+            r = Self::max_right(r, g, k, nxt);
+        } else {
+            l = Self::max_right(l, g, k, sm);
+        }
+        Self::merge(Some(l), Some(r)).unwrap()
+    }
+}
+pub trait BinarySearch<M, T>: Tree<Node = T>
+where
+    M: Monoid,
+    T: MinLeft<M> + MaxRight<M>,
+{
+    fn min_left<G: Fn(M::S) -> bool>(&mut self, r: usize, g: G) -> usize {
+        assert!(g(M::identity()));
+        assert!(r <= self.len());
+        if r == 0 {
+            return r;
+        }
+        let root = mem::replace(self.root(), None);
+        let (mut a, b) = Self::Node::split(root, r);
+
+        let mut k = r;
+        a = Some(T::min_left(a.unwrap(), g, &mut k, M::identity()));
+        *self.root() = T::merge(a, b);
+        k
+    }
+    fn max_right<G: Fn(M::S) -> bool>(&mut self, l: usize, g: G) -> usize {
+        assert!(g(M::identity()));
+        assert!(l <= self.len());
+        if l == self.len() {
+            return l;
+        }
+        let root = mem::replace(self.root(), None);
+        let (a, mut b) = Self::Node::split(root, l);
+
+        let mut k = l;
+        b = Some(T::max_right(b.unwrap(), g, &mut k, M::identity()));
+        *self.root() = T::merge(a, b);
+        k
+    }
+}
+
 pub trait RangeFold<M, T>: Tree<Node = T>
 where
     M: Monoid,
@@ -311,11 +385,11 @@ where
         }
 
         let root = mem::replace(self.root(), None);
-        let (a, b, c) = Self::Node::split_range(root, l, r);
+        let (a, b, c) = T::split_range(root, l, r);
 
         let val = b.as_ref().unwrap().val();
 
-        *self.root() = Self::Node::merge(Self::Node::merge(a, b), c);
+        *self.root() = T::merge(Self::Node::merge(a, b), c);
         val
     }
 }
@@ -336,11 +410,11 @@ where
             return;
         }
         let root = mem::replace(self.root(), None);
-        let (a, mut b, c) = Self::Node::split_range(root, l, r);
+        let (a, mut b, c) = T::split_range(root, l, r);
 
         b = Some(T::apply(b.unwrap(), f));
 
-        *self.root() = Self::Node::merge(Self::Node::merge(a, b), c);
+        *self.root() = T::merge(Self::Node::merge(a, b), c);
     }
 }
 
@@ -354,10 +428,10 @@ pub trait RangeReverse<T: Reverse>: Tree<Node = T> {
             return;
         }
         let root = mem::replace(self.root(), None);
-        let (a, mut b, c) = Self::Node::split_range(root, l, r);
+        let (a, mut b, c) = T::split_range(root, l, r);
 
         b = Some(T::reverse(b.unwrap()));
 
-        *self.root() = Self::Node::merge(Self::Node::merge(a, b), c);
+        *self.root() = T::merge(T::merge(a, b), c);
     }
 }

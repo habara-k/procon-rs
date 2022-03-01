@@ -100,6 +100,17 @@ macro_rules! impl_range_fold {
         impl<$($tree_params)*> RangeFold<$monoid, $node> for $tree {}
     };
 }
+macro_rules! impl_binary_search {
+    (
+        tree = $tree:ty where [$($tree_params:tt)*];
+        node = $node:ty where [$($node_params:tt)*];
+        monoid = $monoid:ty;
+    ) => {
+        impl<$($node_params)*> MinLeft<$monoid> for $node {}
+        impl<$($node_params)*> MaxRight<$monoid> for $node {}
+        impl<$($tree_params)*> BinarySearch<$monoid, $node> for $tree {}
+    };
+}
 macro_rules! impl_range_apply {
     (
         tree = $tree:ty where [$($tree_params:tt)*];
@@ -131,7 +142,7 @@ macro_rules! impl_range_reverse {
 }
 
 /// 列を管理する平衡二分木.
-/// 挿入, 削除, 取得, 分割, 統合 を O(log n) で行う.
+/// 挿入, 削除, 分割, 統合 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -193,7 +204,7 @@ impl_node! {
 }
 
 /// モノイドが載る平衡二分木.
-/// 挿入, 削除, 区間取得, 分割, 統合を O(log n) で行う.
+/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -211,6 +222,11 @@ impl_node! {
 /// seg.insert(1, 10);  // [1, 10, 100, 1000]
 ///
 /// assert_eq!((seg.prod(0, 4), seg.prod(0, 3), seg.prod(1, 2)), (1111, 111, 10));
+///
+/// assert_eq!(seg.min_left(4, |x| x <= 1110), 1);
+/// assert_eq!(seg.min_left(4, |x| x < 1110), 2);
+/// assert_eq!(seg.max_right(1, |x| x <= 110), 3);
+/// assert_eq!(seg.max_right(1, |x| x < 110), 2);
 /// ```
 pub struct RBSegtree<M: Monoid> {
     root: Option<Box<MonoidNode<M>>>,
@@ -257,9 +273,14 @@ impl_range_fold! {
     node = MonoidNode<M>;
     monoid = M;
 }
+impl_binary_search! {
+    tree = RBSegtree<M> where [M: Monoid];
+    node = MonoidNode<M> where [M: Monoid];
+    monoid = M;
+}
 
 /// 作用素モノイドが載る平衡二分木.
-/// 挿入, 削除, 区間取得, 区間作用, 分割, 統合 を O(log n) で行う.
+/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索, 区間作用 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -346,6 +367,11 @@ impl_range_fold! {
     node = MapMonoidNode<F>;
     monoid = F::M;
 }
+impl_binary_search! {
+    tree = RBLazySegtree<F> where [F: MapMonoid];
+    node = MapMonoidNode<F> where [F: MapMonoid];
+    monoid = F::M;
+}
 impl_range_apply! {
     tree = RBLazySegtree<F> where [F: MapMonoid];
     node = MapMonoidNode<F> where [F: MapMonoid];
@@ -358,7 +384,7 @@ impl_range_apply! {
 }
 
 /// 作用素モノイドが載る, 区間反転が可能な平衡二分木.
-/// 挿入, 削除, 区間取得, 区間作用, 分割, 統合, 区間反転 を O(log n) で行う.
+/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索, 区間作用, 区間反転 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -457,6 +483,11 @@ impl_range_fold! {
     node = ReversibleMapMonoidNode<F>;
     monoid = F::M;
 }
+impl_binary_search! {
+    tree = ReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = ReversibleMapMonoidNode<F> where [F: MapMonoid];
+    monoid = F::M;
+}
 impl_range_apply! {
     tree = ReversibleRBLazySegtree<F> where [F: MapMonoid];
     node = ReversibleMapMonoidNode<F> where [F: MapMonoid];
@@ -476,6 +507,8 @@ impl_range_reverse! {
     };
 }
 
+// 以下永続
+
 use std::rc::Rc;
 impl<T: Node<Link = Rc<T>>> Clone for Base<T> {
     fn clone(&self) -> Self {
@@ -490,7 +523,7 @@ impl<T: Node<Link = Rc<T>>> Clone for Base<T> {
 }
 
 /// 列を管理する永続平衡二分木.
-/// 挿入, 削除, 取得, 分割, 統合 を O(log n), clone を O(1) で行う.
+/// 挿入, 削除, 分割, 統合 を O(log n), 複製 を O(1) で行う.
 ///
 /// # Example
 /// ```
@@ -568,6 +601,7 @@ impl_persistent_node! {
 }
 
 /// モノイドが載る永続平衡二分木.
+/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索 を O(log n), 複製 を O(1) で行う.
 pub struct PersistentRBSegtree<M: Monoid> {
     root: Option<Rc<PersistentMonoidNode<M>>>,
 }
@@ -625,8 +659,14 @@ impl_range_fold! {
     node = PersistentMonoidNode<M>;
     monoid = M;
 }
+impl_binary_search! {
+    tree = PersistentRBSegtree<M> where [M: Monoid];
+    node = PersistentMonoidNode<M> where [M: Monoid];
+    monoid = M;
+}
 
 /// 作用素モノイドが載る永続平衡二分木.
+/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索, 区間作用 を O(log n), 複製 を O(1) で行う.
 pub struct PersistentRBLazySegtree<F: MapMonoid> {
     root: Option<Rc<PersistentMapMonoidNode<F>>>,
 }
@@ -693,6 +733,11 @@ impl_range_fold! {
     node = PersistentMapMonoidNode<F>;
     monoid = F::M;
 }
+impl_binary_search! {
+    tree = PersistentRBLazySegtree<F> where [F: MapMonoid];
+    node = PersistentMapMonoidNode<F> where [F: MapMonoid];
+    monoid = F::M;
+}
 impl_range_apply! {
     tree = PersistentRBLazySegtree<F> where [F: MapMonoid];
     node = PersistentMapMonoidNode<F> where [F: MapMonoid];
@@ -705,7 +750,7 @@ impl_range_apply! {
 }
 
 /// 作用素モノイドが載る, 区間反転が可能な永続平衡二分木.
-/// 挿入, 削除, 区間取得, 区間作用, 分割, 統合, 区間反転 を O(log n), clone を O(1) で行う.
+/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索, 区間作用, 区間反転 を O(log n), 複製 を O(1) で行う.
 ///
 /// # Example
 /// ```
@@ -822,6 +867,11 @@ impl_persistent_node! {
 impl_range_fold! {
     tree = PersistentReversibleRBLazySegtree<F> where [F: MapMonoid];
     node = PersistentReversibleMapMonoidNode<F>;
+    monoid = F::M;
+}
+impl_binary_search! {
+    tree = PersistentReversibleRBLazySegtree<F> where [F: MapMonoid];
+    node = PersistentReversibleMapMonoidNode<F> where [F: MapMonoid];
     monoid = F::M;
 }
 impl_range_apply! {

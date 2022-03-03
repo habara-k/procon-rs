@@ -2,8 +2,64 @@ use crate::algebra::{MapMonoid, Monoid};
 use crate::rbtree_traits::*;
 use std::rc::Rc;
 
+/// 赤黒木が平衡を保つために必要な情報を管理する構造体
+pub struct Base<T: Node> {
+    l: Option<T::Link>,
+    r: Option<T::Link>,
+    black: bool,
+    height: usize,  // 黒高さ
+    size: usize,  // 葉の数
+}
+
+
+impl<T: Node> Base<T> {
+    pub fn new(l: T::Link, r: T::Link, black: bool) -> Self {
+        debug_assert_eq!(l.height(), r.height());
+        debug_assert!(l.black() || black);
+        debug_assert!(r.black() || black);
+        Self {
+            black,
+            height: l.height() + black as usize,
+            size: l.size() + r.size(),
+            l: Some(l),
+            r: Some(r),
+        }
+    }
+    pub fn new_leaf() -> Self {
+        Self {
+            black: true,
+            height: 1,
+            size: 1,
+            l: None,
+            r: None,
+        }
+    }
+    pub fn is_leaf(&self) -> bool {
+        self.black && self.height == 1
+    }
+    pub fn make_root(&mut self) {
+        if !self.black {
+            self.black = true;
+            self.height += 1;
+        }
+    }
+    pub fn detach(self) -> (T::Link, T::Link) {
+        debug_assert!(!self.is_leaf());
+        (self.l.unwrap(), self.r.unwrap())
+    }
+    pub fn black(&self) -> bool {
+        self.black
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
+    pub fn size(&self) -> usize {
+        self.size
+    }
+}
+
 /// 列を管理する平衡二分木.
-/// 挿入, 削除, 分割, 統合 を O(log n) で行う.
+/// 挿入, 削除, 分割, 併合 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -55,13 +111,19 @@ impl<U: Clone> Node for OptionNode<U> {
     fn val(&self) -> Self::Value {
         self.val.as_ref().unwrap().clone()
     }
-    fn base(&self) -> &Base<Self> {
-        &self.base
+    fn black(&self) -> bool {
+        self.base.black()
+    }
+    fn height(&self) -> usize {
+        self.base.height()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
     }
 }
 
 /// モノイドが載る平衡二分木.
-/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索 を O(log n) で行う.
+/// 挿入, 削除, 分割, 併合, 区間取得, 二分探索 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -116,8 +178,14 @@ impl<M: Monoid> Node for SegtreeNode<M> {
     fn val(&self) -> Self::Value {
         self.val.clone()
     }
-    fn base(&self) -> &Base<Self> {
-        &self.base
+    fn black(&self) -> bool {
+        self.base.black()
+    }
+    fn height(&self) -> usize {
+        self.base.height()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
     }
 }
 impl<M: Monoid> MonoidNode for SegtreeNode<M> {
@@ -125,7 +193,7 @@ impl<M: Monoid> MonoidNode for SegtreeNode<M> {
 }
 
 /// 作用素モノイドが載る平衡二分木.
-/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索, 区間作用 を O(log n) で行う.
+/// 挿入, 削除, 分割, 併合, 区間取得, 二分探索, 区間作用 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -198,8 +266,14 @@ impl<F: MapMonoid> Node for LazySegtreeNode<F> {
     fn val(&self) -> Self::Value {
         self.val.clone()
     }
-    fn base(&self) -> &Base<Self> {
-        &self.base
+    fn black(&self) -> bool {
+        self.base.black()
+    }
+    fn height(&self) -> usize {
+        self.base.height()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
     }
 }
 impl<F: MapMonoid> MonoidNode for LazySegtreeNode<F> {
@@ -215,7 +289,7 @@ impl<F: MapMonoid> MapMonoidNode for LazySegtreeNode<F> {
 }
 
 /// 作用素モノイドが載る, 区間反転が可能な平衡二分木.
-/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索, 区間作用, 区間反転 を O(log n) で行う.
+/// 挿入, 削除, 分割, 併合, 区間取得, 二分探索, 区間作用, 区間反転 を O(log n) で行う.
 ///
 /// # Example
 /// ```
@@ -300,8 +374,14 @@ impl<F: MapMonoid> Node for ReversibleLazySegtreeNode<F> {
     fn val(&self) -> Self::Value {
         self.val.clone()
     }
-    fn base(&self) -> &Base<Self> {
-        &self.base
+    fn black(&self) -> bool {
+        self.base.black()
+    }
+    fn height(&self) -> usize {
+        self.base.height()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
     }
 }
 impl<F: MapMonoid> MonoidNode for ReversibleLazySegtreeNode<F> {
@@ -322,8 +402,23 @@ impl<F: MapMonoid> ReversibleNode for ReversibleLazySegtreeNode<F> {
     }
 }
 
+impl<T> Clone for Base<T>
+where
+    T: Node<Link = Rc<T>>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            black: self.black,
+            height: self.height,
+            size: self.size,
+            l: self.l.clone(),
+            r: self.r.clone(),
+        }
+    }
+}
+
 /// 列を管理する永続平衡二分木.
-/// 挿入, 削除, 分割, 統合 を O(log n), 複製 を O(1) で行う.
+/// 挿入, 削除, 分割, 併合 を O(log n), 複製 を O(1) で行う.
 ///
 /// # Example
 /// ```
@@ -389,13 +484,19 @@ impl<U: Clone> Node for PersistentOptionNode<U> {
     fn val(&self) -> Self::Value {
         self.val.as_ref().unwrap().clone()
     }
-    fn base(&self) -> &Base<Self> {
-        &self.base
+    fn black(&self) -> bool {
+        self.base.black()
+    }
+    fn height(&self) -> usize {
+        self.base.height()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
     }
 }
 
 /// モノイドが載る永続平衡二分木.
-/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索 を O(log n), 複製 を O(1) で行う.
+/// 挿入, 削除, 分割, 併合, 区間取得, 二分探索 を O(log n), 複製 を O(1) で行う.
 pub type PersistentRBSegtree<M> = Tree<PersistentSegtreeNode<M>>;
 
 pub struct PersistentSegtreeNode<M: Monoid> {
@@ -437,8 +538,14 @@ impl<M: Monoid> Node for PersistentSegtreeNode<M> {
     fn val(&self) -> Self::Value {
         self.val.clone()
     }
-    fn base(&self) -> &Base<Self> {
-        &self.base
+    fn black(&self) -> bool {
+        self.base.black()
+    }
+    fn height(&self) -> usize {
+        self.base.height()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
     }
 }
 impl<M: Monoid> MonoidNode for PersistentSegtreeNode<M> {
@@ -446,7 +553,7 @@ impl<M: Monoid> MonoidNode for PersistentSegtreeNode<M> {
 }
 
 /// 作用素モノイドが載る永続平衡二分木.
-/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索, 区間作用 を O(log n), 複製 を O(1) で行う.
+/// 挿入, 削除, 分割, 併合, 区間取得, 二分探索, 区間作用 を O(log n), 複製 を O(1) で行う.
 pub type PersistentRBLazySegtree<F> = Tree<PersistentLazySegtreeNode<F>>;
 
 pub struct PersistentLazySegtreeNode<F: MapMonoid> {
@@ -497,8 +604,14 @@ impl<F: MapMonoid> Node for PersistentLazySegtreeNode<F> {
     fn val(&self) -> Self::Value {
         self.val.clone()
     }
-    fn base(&self) -> &Base<Self> {
-        &self.base
+    fn black(&self) -> bool {
+        self.base.black()
+    }
+    fn height(&self) -> usize {
+        self.base.height()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
     }
 }
 impl<F: MapMonoid> MonoidNode for PersistentLazySegtreeNode<F> {
@@ -514,7 +627,7 @@ impl<F: MapMonoid> MapMonoidNode for PersistentLazySegtreeNode<F> {
 }
 
 /// 作用素モノイドが載る, 区間反転が可能な永続平衡二分木.
-/// 挿入, 削除, 分割, 統合, 区間取得, 二分探索, 区間作用, 区間反転 を O(log n), 複製 を O(1) で行う.
+/// 挿入, 削除, 分割, 併合, 区間取得, 二分探索, 区間作用, 区間反転 を O(log n), 複製 を O(1) で行う.
 ///
 /// # Example
 /// ```
@@ -617,8 +730,14 @@ impl<F: MapMonoid> Node for PersistentReversibleLazySegtreeNode<F> {
     fn val(&self) -> Self::Value {
         self.val.clone()
     }
-    fn base(&self) -> &Base<Self> {
-        &self.base
+    fn black(&self) -> bool {
+        self.base.black()
+    }
+    fn height(&self) -> usize {
+        self.base.height()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
     }
 }
 impl<F: MapMonoid> MonoidNode for PersistentReversibleLazySegtreeNode<F> {

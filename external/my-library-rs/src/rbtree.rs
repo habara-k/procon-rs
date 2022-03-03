@@ -7,10 +7,9 @@ pub struct Base<T: Node> {
     l: Option<T::Link>,
     r: Option<T::Link>,
     black: bool,
-    height: usize,  // 黒高さ
-    size: usize,  // 葉の数
+    height: usize, // 黒高さ
+    size: usize,   // 葉の数
 }
-
 
 impl<T: Node> Base<T> {
     pub fn new(l: T::Link, r: T::Link, black: bool) -> Self {

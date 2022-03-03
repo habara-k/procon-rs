@@ -246,6 +246,8 @@ pub trait Node: Sized {
         let (a, b, c) = Self::split_range(p, k, k + 1);
         (Self::merge(a, c), b.unwrap().val())
     }
+
+    /// 配列 `v` を元に木を線形時間で構築する.
     fn build(v: &[Self::Value], l: usize, r: usize) -> Option<Self::Link> {
         debug_assert!(l <= r && r <= v.len());
         if l == r {
@@ -387,6 +389,16 @@ pub trait MonoidNode: Node<Value = <<Self as MonoidNode>::M as Monoid>::S> {
 }
 
 impl<T: MonoidNode> Tree<T> {
+    /// 次を両方満たす l を返す.
+    /// * g(prod(l, r)) = true
+    /// * g(prod(l-1, r)) = false or l == 0
+    ///
+    /// # Required
+    /// * g(identity()) = true
+    /// * r <= n
+    ///
+    /// # 計算量
+    /// O(log n)
     pub fn min_left<G: Fn(<T::M as Monoid>::S) -> bool>(&mut self, r: usize, g: G) -> usize {
         debug_assert!(g(<T::M as Monoid>::identity()));
         debug_assert!(r <= self.len());
@@ -406,6 +418,16 @@ impl<T: MonoidNode> Tree<T> {
         k
     }
 
+    /// 次を両方満たす r を返す.
+    /// * g(prod(l, r)) = true
+    /// * g(prod(l, r+1)) = false or r == n
+    ///
+    /// # Required
+    /// * g(identity()) = true
+    /// * l <= n
+    ///
+    /// # 計算量
+    /// O(log n)
     pub fn max_right<G: Fn(<T::M as Monoid>::S) -> bool>(&mut self, l: usize, g: G) -> usize {
         debug_assert!(g(<T::M as Monoid>::identity()));
         debug_assert!(l <= self.len());

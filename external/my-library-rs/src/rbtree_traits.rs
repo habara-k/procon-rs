@@ -98,11 +98,6 @@ pub trait Node: Sized {
         self.base().is_leaf()
     }
 
-    fn detach_as_root(p: Self::Link) -> (Self::Link, Self::Link) {
-        let (l, r) = Self::detach(p);
-        (Self::make_root(l), Self::make_root(r))
-    }
-
     fn len(p: &Option<Self::Link>) -> usize {
         p.as_ref().map_or(0, |p| p.size())
     }
@@ -214,7 +209,8 @@ pub trait Node: Sized {
         if k == Self::len(&p) {
             return (p, None);
         }
-        let (l, r) = Self::detach_as_root(p.unwrap());
+        let (l, r) = Self::detach(p.unwrap());
+        let (l, r) = (Self::make_root(l), Self::make_root(r));
         if k < l.size() {
             let (a, b) = Self::split(Some(l), k);
             return (a, Self::merge(b, Some(r)));
@@ -345,7 +341,10 @@ pub trait MonoidNode: Node<Value = <<Self as MonoidNode>::M as Monoid>::S> {
             }
             return p;
         }
-        let (mut l, mut r) = <Self as Node>::detach_as_root(p);
+
+        let black = p.black();
+        let (mut l, mut r) = <Self as Node>::detach(p);
+
         let nxt = <Self::M as Monoid>::binary_operation(&r.val(), &sm);
         if g(nxt.clone()) {
             *k -= r.size();
@@ -353,7 +352,8 @@ pub trait MonoidNode: Node<Value = <<Self as MonoidNode>::M as Monoid>::S> {
         } else {
             r = Self::min_left(r, g, k, sm);
         }
-        <Self as Node>::merge(Some(l), Some(r)).unwrap()
+
+        <Self as Node>::new(l, r, black)
     }
 
     fn max_right<G: Fn(<Self::M as Monoid>::S) -> bool>(
@@ -368,7 +368,10 @@ pub trait MonoidNode: Node<Value = <<Self as MonoidNode>::M as Monoid>::S> {
             }
             return p;
         }
-        let (mut l, mut r) = <Self as Node>::detach_as_root(p);
+
+        let black = p.black();
+        let (mut l, mut r) = <Self as Node>::detach(p);
+
         let nxt = <Self::M as Monoid>::binary_operation(&sm, &l.val());
         if g(nxt.clone()) {
             *k += l.size();
@@ -376,7 +379,8 @@ pub trait MonoidNode: Node<Value = <<Self as MonoidNode>::M as Monoid>::S> {
         } else {
             l = Self::max_right(l, g, k, sm);
         }
-        <Self as Node>::merge(Some(l), Some(r)).unwrap()
+
+        <Self as Node>::new(l, r, black)
     }
 }
 

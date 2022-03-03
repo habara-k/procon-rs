@@ -48,8 +48,8 @@ impl<U: Clone> Node for OptionNode<U> {
     fn detach(p: Self::Link) -> (Self::Link, Self::Link) {
         p.base.detach()
     }
-    fn make_black(mut p: Self::Link) -> Self::Link {
-        p.base.make_black();
+    fn make_root(mut p: Self::Link) -> Self::Link {
+        p.base.make_root();
         p
     }
     fn val(&self) -> Self::Value {
@@ -109,8 +109,8 @@ impl<M: Monoid> Node for SegtreeNode<M> {
     fn detach(p: Self::Link) -> (Self::Link, Self::Link) {
         p.base.detach()
     }
-    fn make_black(mut p: Self::Link) -> Self::Link {
-        p.base.make_black();
+    fn make_root(mut p: Self::Link) -> Self::Link {
+        p.base.make_root();
         p
     }
     fn val(&self) -> Self::Value {
@@ -191,8 +191,8 @@ impl<F: MapMonoid> Node for LazySegtreeNode<F> {
         r.lazy = F::composition(&p.lazy, &r.lazy);
         (l, r)
     }
-    fn make_black(mut p: Self::Link) -> Self::Link {
-        p.base.make_black();
+    fn make_root(mut p: Self::Link) -> Self::Link {
+        p.base.make_root();
         p
     }
     fn val(&self) -> Self::Value {
@@ -293,8 +293,8 @@ impl<F: MapMonoid> Node for ReversibleLazySegtreeNode<F> {
         }
         (l, r)
     }
-    fn make_black(mut p: Self::Link) -> Self::Link {
-        p.base.make_black();
+    fn make_root(mut p: Self::Link) -> Self::Link {
+        p.base.make_root();
         p
     }
     fn val(&self) -> Self::Value {
@@ -380,9 +380,9 @@ impl<U: Clone> Node for PersistentOptionNode<U> {
     fn detach(p: Self::Link) -> (Self::Link, Self::Link) {
         p.base.clone().detach()
     }
-    fn make_black(mut p: Self::Link) -> Self::Link {
+    fn make_root(mut p: Self::Link) -> Self::Link {
         if !p.base.black() {
-            Rc::make_mut(&mut p).base.make_black();
+            Rc::make_mut(&mut p).base.make_root();
         }
         p
     }
@@ -428,9 +428,9 @@ impl<M: Monoid> Node for PersistentSegtreeNode<M> {
     fn detach(p: Self::Link) -> (Self::Link, Self::Link) {
         p.base.clone().detach()
     }
-    fn make_black(mut p: Self::Link) -> Self::Link {
+    fn make_root(mut p: Self::Link) -> Self::Link {
         if !p.base.black() {
-            Rc::make_mut(&mut p).base.make_black();
+            Rc::make_mut(&mut p).base.make_root();
         }
         p
     }
@@ -488,9 +488,9 @@ impl<F: MapMonoid> Node for PersistentLazySegtreeNode<F> {
         Rc::make_mut(&mut r).lazy = F::composition(&p.lazy, &r.lazy);
         (l, r)
     }
-    fn make_black(mut p: Self::Link) -> Self::Link {
+    fn make_root(mut p: Self::Link) -> Self::Link {
         if !p.base.black() {
-            Rc::make_mut(&mut p).base.make_black();
+            Rc::make_mut(&mut p).base.make_root();
         }
         p
     }
@@ -608,9 +608,9 @@ impl<F: MapMonoid> Node for PersistentReversibleLazySegtreeNode<F> {
         }
         (l, r)
     }
-    fn make_black(mut p: Self::Link) -> Self::Link {
+    fn make_root(mut p: Self::Link) -> Self::Link {
         if !p.base.black() {
-            Rc::make_mut(&mut p).base.make_black();
+            Rc::make_mut(&mut p).base.make_root();
         }
         p
     }

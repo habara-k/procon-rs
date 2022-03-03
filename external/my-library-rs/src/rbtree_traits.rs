@@ -54,7 +54,7 @@ impl<T: Node> Base<T> {
     pub fn is_leaf(&self) -> bool {
         self.black && self.height == 1
     }
-    pub fn make_black(&mut self) {
+    pub fn make_root(&mut self) {
         if !self.black {
             self.black = true;
             self.height += 1;
@@ -81,7 +81,7 @@ pub trait Node: Sized {
     fn new(l: Self::Link, r: Self::Link, black: bool) -> Self::Link;
     fn new_leaf(val: Self::Value) -> Self::Link;
     fn detach(p: Self::Link) -> (Self::Link, Self::Link);
-    fn make_black(p: Self::Link) -> Self::Link;
+    fn make_root(p: Self::Link) -> Self::Link;
     fn val(&self) -> Self::Value;
     fn base(&self) -> &Base<Self>;
 
@@ -98,10 +98,19 @@ pub trait Node: Sized {
         self.base().is_leaf()
     }
 
+    fn detach_as_root(p: Self::Link) -> (Self::Link, Self::Link) {
+        let (l, r) = Self::detach(p);
+        (Self::make_root(l), Self::make_root(r))
+    }
+
     fn len(p: &Option<Self::Link>) -> usize {
         p.as_ref().map_or(0, |p| p.size())
     }
+    fn is_root(p: &Option<Self::Link>) -> bool {
+        p.as_ref().map_or(true, |p| p.black())
+    }
     fn merge(a: Option<Self::Link>, b: Option<Self::Link>) -> Option<Self::Link> {
+        assert!(Self::is_root(&a) && Self::is_root(&b));
         if a.is_none() {
             return b;
         }
@@ -109,7 +118,7 @@ pub trait Node: Sized {
             return a;
         }
         let (a, b) = (a.unwrap(), b.unwrap());
-        Some(Self::merge_sub(Self::make_black(a), Self::make_black(b)))
+        Some(Self::make_root(Self::merge_sub(a, b)))
     }
     fn merge_sub(a: Self::Link, b: Self::Link) -> Self::Link {
         // # Require
@@ -167,7 +176,7 @@ pub trait Node: Sized {
                 //         (RED,h)  r(RED,h)     =>      (BLACK,h+1)  r(BLACK,h+1)
                 //        /    \                          /     \
                 //   c(RED,h)   lr(BLACK,h)           c(RED,h)   lr(BLACK,h)
-                Self::new(Self::new(c, lr, BLACK), Self::make_black(r), RED)
+                Self::new(Self::new(c, lr, BLACK), Self::make_root(r), RED)
             };
         }
         if a.height() > b.height() {
@@ -186,7 +195,7 @@ pub trait Node: Sized {
             return if l.black() {
                 Self::new(Self::new(l, rl, RED), c, BLACK)
             } else {
-                Self::new(Self::make_black(l), Self::new(rl, c, BLACK), RED)
+                Self::new(Self::make_root(l), Self::new(rl, c, BLACK), RED)
             };
         }
 
@@ -198,13 +207,14 @@ pub trait Node: Sized {
     }
     fn split(p: Option<Self::Link>, k: usize) -> (Option<Self::Link>, Option<Self::Link>) {
         assert!(k <= Self::len(&p));
+        assert!(Self::is_root(&p));
         if k == 0 {
             return (None, p);
         }
         if k == Self::len(&p) {
             return (p, None);
         }
-        let (l, r) = Self::detach(p.unwrap());
+        let (l, r) = Self::detach_as_root(p.unwrap());
         if k < l.size() {
             let (a, b) = Self::split(Some(l), k);
             return (a, Self::merge(b, Some(r)));
@@ -221,17 +231,20 @@ pub trait Node: Sized {
         r: usize,
     ) -> (Option<Self::Link>, Option<Self::Link>, Option<Self::Link>) {
         assert!(l <= r && r <= Self::len(&p));
+        assert!(Self::is_root(&p));
         let (p, c) = Self::split(p, r);
         let (a, b) = Self::split(p, l);
         (a, b, c)
     }
     fn insert(p: Option<Self::Link>, k: usize, val: Self::Value) -> Option<Self::Link> {
         assert!(k <= Self::len(&p));
+        assert!(Self::is_root(&p));
         let (a, b) = Self::split(p, k);
         Self::merge(Self::merge(a, Some(Self::new_leaf(val))), b)
     }
     fn remove(p: Option<Self::Link>, k: usize) -> (Option<Self::Link>, Self::Value) {
         assert!(k < Self::len(&p));
+        assert!(Self::is_root(&p));
         let (a, b, c) = Self::split_range(p, k, k + 1);
         (Self::merge(a, c), b.unwrap().val())
     }
@@ -267,6 +280,7 @@ pub struct Tree<T: Node> {
 }
 impl<T: Node> Tree<T> {
     fn new(root: Option<T::Link>) -> Self {
+        assert!(T::is_root(&root));
         Self { root }
     }
     pub fn len(&mut self) -> usize {
@@ -331,7 +345,7 @@ pub trait MonoidNode: Node<Value = <<Self as MonoidNode>::M as Monoid>::S> {
             }
             return p;
         }
-        let (mut l, mut r) = <Self as Node>::detach(p);
+        let (mut l, mut r) = <Self as Node>::detach_as_root(p);
         let nxt = <Self::M as Monoid>::binary_operation(&r.val(), &sm);
         if g(nxt.clone()) {
             *k -= r.size();
@@ -354,7 +368,7 @@ pub trait MonoidNode: Node<Value = <<Self as MonoidNode>::M as Monoid>::S> {
             }
             return p;
         }
-        let (mut l, mut r) = <Self as Node>::detach(p);
+        let (mut l, mut r) = <Self as Node>::detach_as_root(p);
         let nxt = <Self::M as Monoid>::binary_operation(&sm, &l.val());
         if g(nxt.clone()) {
             *k += l.size();

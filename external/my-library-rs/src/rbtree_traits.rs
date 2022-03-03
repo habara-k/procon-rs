@@ -284,31 +284,29 @@ impl<T: Node> Tree<T> {
     }
     pub fn insert(&mut self, k: usize, val: T::Value) {
         assert!(k <= self.len());
-        let root = mem::replace(&mut self.root, None);
-        self.root = T::insert(root, k, val);
+        self.root = T::insert(mem::replace(&mut self.root, None), k, val);
     }
     pub fn remove(&mut self, k: usize) -> T::Value {
         assert!(k < self.len());
-        let root = mem::replace(&mut self.root, None);
-        let (root, val) = T::remove(root, k);
+        let (root, val) = T::remove(mem::replace(&mut self.root, None), k);
         self.root = root;
         val
     }
     pub fn split(mut self, k: usize) -> (Self, Self) {
         assert!(k <= self.len());
-        let root = mem::replace(&mut self.root, None);
-        let (l, r) = T::split(root, k);
+        let (l, r) = T::split(mem::replace(&mut self.root, None), k);
         (Self::new(l), Self::new(r))
     }
     pub fn split_range(mut self, l: usize, r: usize) -> (Self, Self, Self) {
         assert!(l <= r && r <= self.len());
-        let root = mem::replace(&mut self.root, None);
-        let (a, b, c) = T::split_range(root, l, r);
+        let (a, b, c) = T::split_range(mem::replace(&mut self.root, None), l, r);
         (Self::new(a), Self::new(b), Self::new(c))
     }
     pub fn merge(&mut self, other: &mut Self) {
-        let root = mem::replace(&mut self.root, None);
-        self.root = T::merge(root, mem::replace(&mut other.root, None));
+        self.root = T::merge(
+            mem::replace(&mut self.root, None),
+            mem::replace(&mut other.root, None),
+        );
     }
     pub fn get(&mut self, k: usize) -> T::Value {
         assert!(k < self.len());
@@ -320,9 +318,11 @@ impl<T: Node> Tree<T> {
         if self.len() == 0 {
             return vec![];
         }
-        let root = mem::replace(&mut self.root, None).unwrap();
         let mut v = vec![];
-        self.root = Some(T::collect_vec(root, &mut v));
+        self.root = Some(T::collect_vec(
+            mem::replace(&mut self.root, None).unwrap(),
+            &mut v,
+        ));
         v
     }
 }
@@ -391,8 +391,7 @@ impl<T: MonoidNode> Tree<T> {
         if r == 0 {
             return r;
         }
-        let root = mem::replace(&mut self.root, None);
-        let (mut a, b) = T::split(root, r);
+        let (mut a, b) = T::split(mem::replace(&mut self.root, None), r);
 
         let mut k = r;
         a = Some(T::min_left(
@@ -411,8 +410,7 @@ impl<T: MonoidNode> Tree<T> {
         if l == self.len() {
             return l;
         }
-        let root = mem::replace(&mut self.root, None);
-        let (a, mut b) = T::split(root, l);
+        let (a, mut b) = T::split(mem::replace(&mut self.root, None), l);
 
         let mut k = l;
         b = Some(T::max_right(
@@ -431,8 +429,7 @@ impl<T: MonoidNode> Tree<T> {
             return <T::M as Monoid>::identity();
         }
 
-        let root = mem::replace(&mut self.root, None);
-        let (a, b, c) = T::split_range(root, l, r);
+        let (a, b, c) = T::split_range(mem::replace(&mut self.root, None), l, r);
 
         let val = b.as_ref().unwrap().val();
 
@@ -454,8 +451,7 @@ impl<T: MapMonoidNode> Tree<T> {
         if l == r {
             return;
         }
-        let root = mem::replace(&mut self.root, None);
-        let (a, mut b, c) = T::split_range(root, l, r);
+        let (a, mut b, c) = T::split_range(mem::replace(&mut self.root, None), l, r);
 
         b = Some(T::apply(b.unwrap(), f));
 
@@ -473,8 +469,7 @@ impl<T: ReversibleNode> Tree<T> {
         if l == r {
             return;
         }
-        let root = mem::replace(&mut self.root, None);
-        let (a, mut b, c) = T::split_range(root, l, r);
+        let (a, mut b, c) = T::split_range(mem::replace(&mut self.root, None), l, r);
 
         b = Some(T::reverse(b.unwrap()));
 

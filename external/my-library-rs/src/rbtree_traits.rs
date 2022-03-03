@@ -31,9 +31,9 @@ where
 
 impl<T: Node> Base<T> {
     pub fn new(l: T::Link, r: T::Link, black: bool) -> Self {
-        assert_eq!(l.height(), r.height());
-        assert!(l.black() || black);
-        assert!(r.black() || black);
+        debug_assert_eq!(l.height(), r.height());
+        debug_assert!(l.black() || black);
+        debug_assert!(r.black() || black);
         Self {
             black,
             height: l.height() + black as usize,
@@ -61,7 +61,7 @@ impl<T: Node> Base<T> {
         }
     }
     pub fn detach(self) -> (T::Link, T::Link) {
-        assert!(!self.is_leaf());
+        debug_assert!(!self.is_leaf());
         (self.l.unwrap(), self.r.unwrap())
     }
     pub fn black(&self) -> bool {
@@ -105,7 +105,7 @@ pub trait Node: Sized {
         p.as_ref().map_or(true, |p| p.black())
     }
     fn merge(a: Option<Self::Link>, b: Option<Self::Link>) -> Option<Self::Link> {
-        assert!(Self::is_root(&a) && Self::is_root(&b));
+        debug_assert!(Self::is_root(&a) && Self::is_root(&b));
         if a.is_none() {
             return b;
         }
@@ -121,8 +121,8 @@ pub trait Node: Sized {
         // # Ensure
         //     return.height == max(a.height, b.height)
         //     [WARNING] return.black may be false!
-        assert!(a.black());
-        assert!(b.black());
+        debug_assert!(a.black());
+        debug_assert!(b.black());
 
         if a.height() < b.height() {
             let (l, r) = Self::detach(b);
@@ -201,8 +201,8 @@ pub trait Node: Sized {
         Self::new(a, b, RED)
     }
     fn split(p: Option<Self::Link>, k: usize) -> (Option<Self::Link>, Option<Self::Link>) {
-        assert!(k <= Self::len(&p));
-        assert!(Self::is_root(&p));
+        debug_assert!(k <= Self::len(&p));
+        debug_assert!(Self::is_root(&p));
         if k == 0 {
             return (None, p);
         }
@@ -226,26 +226,26 @@ pub trait Node: Sized {
         l: usize,
         r: usize,
     ) -> (Option<Self::Link>, Option<Self::Link>, Option<Self::Link>) {
-        assert!(l <= r && r <= Self::len(&p));
-        assert!(Self::is_root(&p));
+        debug_assert!(l <= r && r <= Self::len(&p));
+        debug_assert!(Self::is_root(&p));
         let (p, c) = Self::split(p, r);
         let (a, b) = Self::split(p, l);
         (a, b, c)
     }
     fn insert(p: Option<Self::Link>, k: usize, val: Self::Value) -> Option<Self::Link> {
-        assert!(k <= Self::len(&p));
-        assert!(Self::is_root(&p));
+        debug_assert!(k <= Self::len(&p));
+        debug_assert!(Self::is_root(&p));
         let (a, b) = Self::split(p, k);
         Self::merge(Self::merge(a, Some(Self::new_leaf(val))), b)
     }
     fn remove(p: Option<Self::Link>, k: usize) -> (Option<Self::Link>, Self::Value) {
-        assert!(k < Self::len(&p));
-        assert!(Self::is_root(&p));
+        debug_assert!(k < Self::len(&p));
+        debug_assert!(Self::is_root(&p));
         let (a, b, c) = Self::split_range(p, k, k + 1);
         (Self::merge(a, c), b.unwrap().val())
     }
     fn build(v: &[Self::Value], l: usize, r: usize) -> Option<Self::Link> {
-        assert!(l <= r && r <= v.len());
+        debug_assert!(l <= r && r <= v.len());
         if l == r {
             return None;
         }
@@ -276,29 +276,29 @@ pub struct Tree<T: Node> {
 }
 impl<T: Node> Tree<T> {
     fn new(root: Option<T::Link>) -> Self {
-        assert!(T::is_root(&root));
+        debug_assert!(T::is_root(&root));
         Self { root }
     }
     pub fn len(&mut self) -> usize {
         T::len(&self.root)
     }
     pub fn insert(&mut self, k: usize, val: T::Value) {
-        assert!(k <= self.len());
+        debug_assert!(k <= self.len());
         self.root = T::insert(mem::replace(&mut self.root, None), k, val);
     }
     pub fn remove(&mut self, k: usize) -> T::Value {
-        assert!(k < self.len());
+        debug_assert!(k < self.len());
         let (root, val) = T::remove(mem::replace(&mut self.root, None), k);
         self.root = root;
         val
     }
     pub fn split(mut self, k: usize) -> (Self, Self) {
-        assert!(k <= self.len());
+        debug_assert!(k <= self.len());
         let (l, r) = T::split(mem::replace(&mut self.root, None), k);
         (Self::new(l), Self::new(r))
     }
     pub fn split_range(mut self, l: usize, r: usize) -> (Self, Self, Self) {
-        assert!(l <= r && r <= self.len());
+        debug_assert!(l <= r && r <= self.len());
         let (a, b, c) = T::split_range(mem::replace(&mut self.root, None), l, r);
         (Self::new(a), Self::new(b), Self::new(c))
     }
@@ -309,7 +309,7 @@ impl<T: Node> Tree<T> {
         );
     }
     pub fn get(&mut self, k: usize) -> T::Value {
-        assert!(k < self.len());
+        debug_assert!(k < self.len());
         let val = self.remove(k);
         self.insert(k, val.clone());
         val
@@ -386,8 +386,8 @@ pub trait MonoidNode: Node<Value = <<Self as MonoidNode>::M as Monoid>::S> {
 
 impl<T: MonoidNode> Tree<T> {
     pub fn min_left<G: Fn(<T::M as Monoid>::S) -> bool>(&mut self, r: usize, g: G) -> usize {
-        assert!(g(<T::M as Monoid>::identity()));
-        assert!(r <= self.len());
+        debug_assert!(g(<T::M as Monoid>::identity()));
+        debug_assert!(r <= self.len());
         if r == 0 {
             return r;
         }
@@ -405,8 +405,8 @@ impl<T: MonoidNode> Tree<T> {
     }
 
     pub fn max_right<G: Fn(<T::M as Monoid>::S) -> bool>(&mut self, l: usize, g: G) -> usize {
-        assert!(g(<T::M as Monoid>::identity()));
-        assert!(l <= self.len());
+        debug_assert!(g(<T::M as Monoid>::identity()));
+        debug_assert!(l <= self.len());
         if l == self.len() {
             return l;
         }
@@ -424,7 +424,7 @@ impl<T: MonoidNode> Tree<T> {
     }
 
     pub fn prod(&mut self, l: usize, r: usize) -> <T::M as Monoid>::S {
-        assert!(l <= r && r <= self.len());
+        debug_assert!(l <= r && r <= self.len());
         if l == r {
             return <T::M as Monoid>::identity();
         }
@@ -447,7 +447,7 @@ pub trait MapMonoidNode:
 
 impl<T: MapMonoidNode> Tree<T> {
     pub fn apply_range(&mut self, l: usize, r: usize, f: <T::F as MapMonoid>::F) {
-        assert!(l <= r && r <= self.len());
+        debug_assert!(l <= r && r <= self.len());
         if l == r {
             return;
         }
@@ -465,7 +465,7 @@ pub trait ReversibleNode: Node {
 
 impl<T: ReversibleNode> Tree<T> {
     pub fn reverse_range(&mut self, l: usize, r: usize) {
-        assert!(l <= r && r <= self.len());
+        debug_assert!(l <= r && r <= self.len());
         if l == r {
             return;
         }

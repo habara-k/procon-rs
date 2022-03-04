@@ -211,7 +211,7 @@ pub trait Node: Sized {
             // split_sub の性質より make_root(b.height) ≦ l.height + 1 == p.height
             // これと make_root(r).height ≦ p.height より,
             //     merge_sub(make_root(b), make_root(r)).height ≦ p.height. OK
-
+            //
             // (2) pが赤のとき
             // l が黒なので, split_subの性質より b.height ≦ l.height == p.height
             //

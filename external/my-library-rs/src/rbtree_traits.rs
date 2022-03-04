@@ -55,18 +55,19 @@ pub trait Node: Sized {
         Some(Self::make_root(Self::merge_sub(a.unwrap(), b.unwrap())))
     }
 
-    /// 木 `a, b` を併合する
-    /// # Required
-    /// `a, b` はそれぞれ空でなく, 根が黒である.
-    ///
-    /// # Ensured
-    /// 併合後の木を `c` とすると,
-    /// `c.height == max(a.height, b.height)` が成立する.
-    /// ただし `c` の根が黒であるとは限らない.
-    ///
-    /// # 計算量
-    /// O(|`a.height - b.height`|)
-    ///
+    // 木 a, b を併合する
+    //
+    // # Required
+    // a, b はそれぞれ空でなく, 根が黒である.
+    //
+    // # Ensured
+    // 併合後の木を c とすると,
+    // c.height == max(a.height, b.height) が成立する.
+    // ただし c の根が黒であるとは限らない.
+    //
+    // # 計算量
+    // O(|a.height - b.height|)
+    //
     fn merge_sub(a: Self::Link, b: Self::Link) -> Self::Link {
         debug_assert!(a.black());
         debug_assert!(b.black());
@@ -172,25 +173,26 @@ pub trait Node: Sized {
         (a, b, c)
     }
 
-    /// 木 `p` を `[0, k), [k, n)` で分割する.
-    ///
-    /// # Required
-    /// * `0 < k < n`
-    ///
-    /// # Ensured
-    /// 返却される2つの木 `c = a, b` に対して以下が成立する.
-    /// * `c.height ≦ p.height + 1`
-    /// * `c.height == p.height + 1` となるのは, `p` が赤 かつ `c` が黒のときだけ
-    ///
-    /// # 計算量
-    /// O(log n)
-    /// ## 証明
-    /// 再帰を降りながら木を O(log n) 個に分割する.
-    /// 再帰の末端で 2つの木を持ち, 再帰を昇りながら先ほど分割してできた木をどちらかに merge していく.
-    /// ここで # Ensured より `x` に `y` をマージする際, `x.height ≦ y.height + 1` が保証されている.
-    /// `y.height` が昇順となるように処理は進み, その最大値は O(log n) である.
-    /// merge(x, y) の計算量は O(|`x.height - y.height`|) であったことを踏まえると,
-    /// split は全体で O(log n) になっている.
+    // 葉を n 個持つ木 p を [0, k), [k, n) で分割する.
+    //
+    // # Required
+    // * 0 < k < n
+    //
+    // # Ensured
+    // 返却される2つの木 c = a, b に対して以下が成立する.
+    // * c.height ≦ p.height + 1
+    // * c.height == p.height + 1 となるのは, p の根が赤 かつ c の根が黒のときだけ
+    //
+    // # 計算量
+    // O(log n)
+    //
+    // ## 証明
+    // 再帰を降りながら木を O(log n) 個に分割する.
+    // 再帰の末端で 2つの木を持ち, 再帰を昇りながら先ほど分割してできた木をどちらかに merge していく.
+    // ここで # Ensured より x に y をマージする際, x.height ≦ y.height + 1 が保証されている.
+    // y.height が昇順となるように処理は進み, その最大値は O(log n) である.
+    // merge(x, y) の計算量は O(|x.height - y.height|) であったことを踏まえると,
+    // split は全体で O(log n) になっている.
     fn split_sub(p: Self::Link, k: usize) -> (Self::Link, Self::Link) {
         debug_assert!(!p.is_leaf());
         debug_assert!(0 < k && k < p.size());
@@ -201,36 +203,39 @@ pub trait Node: Sized {
             return (a, Self::merge_sub(Self::make_root(b), Self::make_root(r)));
 
             // 左側の返り値の検証
-            // (1) pが黒のとき
-            // split_sub の性質より a.height ≦ l.height + 1 == p.height. OK
-            // (2) pが赤のとき
-            // l が黒なので, split_sub の性質より a.height ≦ l.height == p.height. OK
-
+            // (1) p の根が黒のとき
+            // split_sub の性質より
+            //     a.height ≦ l.height + 1 == p.height. OK
+            // (2) p の根が赤のとき
+            // l の根が黒なので, split_sub の性質より
+            //     a.height ≦ l.height == p.height. OK
+            //
             // 右側の返り値の検証
-            // (1) pが黒のとき
+            // (1) p の根が黒のとき
             // split_sub の性質より make_root(b.height) ≦ l.height + 1 == p.height
             // これと make_root(r).height ≦ p.height より,
             //     merge_sub(make_root(b), make_root(r)).height ≦ p.height. OK
             //
-            // (2) pが赤のとき
-            // l が黒なので, split_subの性質より b.height ≦ l.height == p.height
+            // (2) p の根が赤のとき
+            // l の根が黒なので, split_subの性質より b.height ≦ l.height == p.height
             //
-            // (2.1) b が黒のとき
-            // make_root(b).height == b.height ≦ p.height, make_root(r).height == p.height より
-            //     merge_sub(make_root(b), make_root(r)).height ≦ p.height
-            // (2.2) b が赤のとき
-            // make_root(b).height == b.height + 1 ≦ p.height + 1
-            // また, b の左右の子が黒となるので, merge_sub の実装を読むと
-            // merge_sub(make_root(b), make_root(r)) は黒となることがわかる.
-            //     merge_sub(make_root(b), make_root(r)).height ≦ p.height + 1 かつ
-            //     merge_sub(make_root(b), make_root(r)) は黒. OK
+            // (2.1) make_root(b).height ≦ p.height のとき
+            // make_root(r).height == p.height と合わせて
+            //     merge_sub(make_root(b), make_root(r)).height ≦ p.height. OK
+            //
+            // (2.2) make_root(b).height == p.height + 1 のとき
+            // make_root(r).height == p.height < make_root(b).height
+            // これと b の左右の子が黒となることから, merge_sub の実装を読むと
+            // merge_sub(make_root(b), make_root(r)) の根は黒となることがわかる.
+            //     merge_sub(make_root(b), make_root(r)).height == p.height + 1 かつ
+            //     merge_sub(make_root(b), make_root(r)) の根は黒. OK
         }
         if k > l.size() {
             let (a, b) = Self::split_sub(r, k - l.size());
             return (Self::merge_sub(Self::make_root(l), Self::make_root(a)), b);
         }
 
-        // l.height ≦ p.height && r.height ≦ p.height より条件を満たす.
+        // l.height ≦ p.height && r.height ≦ p.height. OK
         (l, r)
     }
 

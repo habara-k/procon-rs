@@ -55,19 +55,19 @@ pub trait Node: Sized {
         Some(Self::make_root(Self::merge_sub(a.unwrap(), b.unwrap())))
     }
 
-    // 木 a, b を併合する
-    //
-    // # Required
-    // a, b はそれぞれ空でなく, 根が黒である.
-    //
-    // # Ensured
-    // 併合後の木を c とすると,
-    // c.height == max(a.height, b.height) が成立する.
-    // ただし c の根が黒であるとは限らない.
-    //
-    // # 計算量
-    // O(|a.height - b.height|)
-    //
+    /// 木 a, b を併合する
+    ///
+    /// # Required
+    /// a, b はそれぞれ空でなく, 根が黒である.
+    ///
+    /// # Ensured
+    /// 併合後の木を c とすると,
+    /// c.height == max(a.height, b.height) が成立する.
+    /// ただし c の根が黒であるとは限らない.
+    ///
+    /// # 計算量
+    /// O(|a.height - b.height|)
+    ///
     fn merge_sub(a: Self::Link, b: Self::Link) -> Self::Link {
         debug_assert!(a.black());
         debug_assert!(b.black());
@@ -173,26 +173,26 @@ pub trait Node: Sized {
         (a, b, c)
     }
 
-    // 葉を n 個持つ木 p を [0, k), [k, n) で分割する.
-    //
-    // # Required
-    // * 0 < k < n
-    //
-    // # Ensured
-    // 返却される2つの木 c = a, b に対して以下が成立する.
-    // * c.height ≦ p.height + 1
-    // * c.height == p.height + 1 となるのは, p の根が赤 かつ c の根が黒のときだけ
-    //
-    // # 計算量
-    // O(log n)
-    //
-    // ## 証明
-    // 再帰を降りながら木を O(log n) 個に分割する.
-    // 再帰の末端で 2つの木を持ち, 再帰を昇りながら先ほど分割してできた木をどちらかに merge していく.
-    // ここで # Ensured より x に y をマージする際, x.height ≦ y.height + 1 が保証されている.
-    // y.height が昇順となるように処理は進み, その最大値は O(log n) である.
-    // merge(x, y) の計算量は O(|x.height - y.height|) であったことを踏まえると,
-    // split は全体で O(log n) になっている.
+    /// 葉を n 個持つ木 p を [0, k), [k, n) で分割する.
+    ///
+    /// # Required
+    /// * 0 < k < n
+    ///
+    /// # Ensured
+    /// 返却される2つの木 c = a, b に対して以下が成立する.
+    /// * c.height ≦ p.height + 1
+    /// * c.height == p.height + 1 となるのは, p の根が赤 かつ c の根が黒のときだけ
+    ///
+    /// # 計算量
+    /// O(log n)
+    ///
+    /// ## 証明
+    /// 再帰を降りながら木を O(log n) 個に分割する.
+    /// 再帰の末端で 2つの木を持ち, 再帰を昇りながら先ほど分割してできた木をどちらかに merge していく.
+    /// ここで # Ensured より x に y をマージする際, x.height ≦ y.height + 1 が保証されている.
+    /// y.height が昇順となるように処理は進み, その最大値は O(log n) である.
+    /// merge(x, y) の計算量は O(|x.height - y.height|) であったことを踏まえると,
+    /// split は全体で O(log n) になっている.
     fn split_sub(p: Self::Link, k: usize) -> (Self::Link, Self::Link) {
         debug_assert!(!p.is_leaf());
         debug_assert!(0 < k && k < p.size());

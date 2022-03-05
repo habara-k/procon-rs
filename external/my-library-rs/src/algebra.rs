@@ -24,23 +24,11 @@ pub trait MapMonoid {
     fn composition(f: &Self::F, g: &Self::F) -> Self::F;
 }
 
-pub struct DefaultMonoid<U> {
-    _phantom: PhantomData<U>,
+pub struct NullMapMonoid<M> {
+    _phantom: PhantomData<M>,
 }
-impl<U: Default + Clone> Monoid for DefaultMonoid<U> {
-    type S = U;
-    fn identity() -> Self::S {
-        Default::default()
-    }
-    fn binary_operation(_a: &Self::S, _b: &Self::S) -> Self::S {
-        Default::default()
-    }
-}
-pub struct NullMapMonoid<U> {
-    _phantom: PhantomData<U>,
-}
-impl<U: Default + Clone> MapMonoid for NullMapMonoid<U> {
-    type M = DefaultMonoid<U>;
+impl<M: Monoid> MapMonoid for NullMapMonoid<M> {
+    type M = M;
     type F = ();
     fn identity_map() -> Self::F {
         ()

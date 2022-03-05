@@ -15,16 +15,14 @@ use std::mem::swap;
 use superslice::Ext;
 use text_io::read;
 
-use my_library_rs::{MapMonoid, Monoid, PersistentRBLazySegtree, RangeApply, RangeFold, Tree};
+use my_library_rs::*;
 
 struct RangeSum;
 impl Monoid for RangeSum {
     type S = (i64, usize);
-
     fn identity() -> Self::S {
         (0, 0)
     }
-
     fn binary_operation(&(a, n): &Self::S, &(b, m): &Self::S) -> Self::S {
         (a + b, n + m)
     }
@@ -33,15 +31,12 @@ struct RangeAddRangeSum;
 impl MapMonoid for RangeAddRangeSum {
     type M = RangeSum;
     type F = i64;
-
     fn identity_map() -> Self::F {
         0
     }
-
     fn mapping(&a: &Self::F, &(x, n): &<Self::M as Monoid>::S) -> <Self::M as Monoid>::S {
         (a * n as i64 + x, n)
     }
-
     fn composition(&a: &Self::F, &b: &Self::F) -> Self::F {
         a + b
     }
@@ -54,7 +49,7 @@ fn main() {
         x: [i64; n],
     }
 
-    let mut seg: PersistentRBLazySegtree<RangeAddRangeSum> =
+    let mut seg: RedBlackTree<RangeAddRangeSum> =
         x.iter().map(|&v| (v, 1usize)).collect_vec().into();
 
     let mut ans = vec![];
@@ -68,11 +63,11 @@ fn main() {
             2 => {
                 input! { a: Usize1, b: Usize1, c: Usize1, d: Usize1 }
                 let x = seg.clone();
-                let (_, mut x, _) = x.split_range(c, d + 1);
+                let (_, mut x, _) = x.split3(c, d + 1);
                 // x = [c,d+1)
 
                 let y = seg.clone();
-                let (mut y, _, mut z) = y.split_range(a, b + 1);
+                let (mut y, _, mut z) = y.split3(a, b + 1);
                 // y = [0,a)
                 // z = [b+1,n)
 

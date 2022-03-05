@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::mem::replace;
+use std::rc::Rc;
 
 use crate::algebra::{MapMonoid, Monoid};
 
@@ -235,11 +235,7 @@ impl<F: MapMonoid> RedBlackNode<F> {
         }
         Some(Self::make_root(Self::merge_sub(a.unwrap(), b.unwrap())))
     }
-    fn merge3(
-        a: Option<Rc<Self>>,
-        b: Option<Rc<Self>>,
-        c: Option<Rc<Self>>,
-    ) -> Option<Rc<Self>> {
+    fn merge3(a: Option<Rc<Self>>, b: Option<Rc<Self>>, c: Option<Rc<Self>>) -> Option<Rc<Self>> {
         Self::merge(Self::merge(a, b), c)
     }
     fn split(p: Option<Rc<Self>>, k: usize) -> (Option<Rc<Self>>, Option<Rc<Self>>) {
@@ -285,7 +281,7 @@ impl<F: MapMonoid> RedBlackNode<F> {
     fn build(v: &[<F::M as Monoid>::S], l: usize, r: usize) -> Option<Rc<Self>> {
         debug_assert!(l <= r && r <= v.len());
         if l == r {
-            return None
+            return None;
         }
         if l + 1 == r {
             return Some(Self::new_leaf(v[l].clone()));

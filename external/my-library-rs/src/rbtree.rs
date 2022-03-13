@@ -6,7 +6,7 @@ use crate::algebra::{MapMonoid, Monoid};
 const RED: bool = false;
 const BLACK: bool = true;
 
-pub struct RedBlackNode<F: MapMonoid> {
+pub struct RbNode<F: MapMonoid> {
     l: Option<Rc<Self>>,
     r: Option<Rc<Self>>,
     black: bool,
@@ -16,7 +16,7 @@ pub struct RedBlackNode<F: MapMonoid> {
     lazy: F::F,
     rev: bool,
 }
-impl<F: MapMonoid> RedBlackNode<F> {
+impl<F: MapMonoid> RbNode<F> {
     fn new(l: Rc<Self>, r: Rc<Self>, black: bool) -> Rc<Self> {
         Rc::new(Self {
             black,
@@ -375,7 +375,7 @@ impl<F: MapMonoid> RedBlackNode<F> {
         p
     }
 }
-impl<F: MapMonoid> Clone for RedBlackNode<F> {
+impl<F: MapMonoid> Clone for RbNode<F> {
     fn clone(&self) -> Self {
         Self {
             l: self.l.clone(),
@@ -390,24 +390,24 @@ impl<F: MapMonoid> Clone for RedBlackNode<F> {
     }
 }
 
-pub struct RedBlackTree<F: MapMonoid> {
-    root: Option<Rc<RedBlackNode<F>>>,
+pub struct RbTree<F: MapMonoid> {
+    root: Option<Rc<RbNode<F>>>,
 }
-impl<F: MapMonoid> RedBlackTree<F> {
-    fn new(root: Option<Rc<RedBlackNode<F>>>) -> Self {
+impl<F: MapMonoid> RbTree<F> {
+    fn new(root: Option<Rc<RbNode<F>>>) -> Self {
         Self { root }
     }
     pub fn len(&mut self) -> usize {
         self.root.as_ref().map_or(0, |p| p.size)
     }
     pub fn merge(&mut self, other: &mut Self) {
-        self.root = RedBlackNode::<F>::merge(
+        self.root = RbNode::<F>::merge(
             replace(&mut self.root, None),
             replace(&mut other.root, None),
         );
     }
     pub fn merge3(&mut self, b: &mut Self, c: &mut Self) {
-        self.root = RedBlackNode::<F>::merge3(
+        self.root = RbNode::<F>::merge3(
             replace(&mut self.root, None),
             replace(&mut b.root, None),
             replace(&mut c.root, None),
@@ -415,22 +415,22 @@ impl<F: MapMonoid> RedBlackTree<F> {
     }
     pub fn split(mut self, k: usize) -> (Self, Self) {
         debug_assert!(k <= self.len());
-        let (l, r) = RedBlackNode::<F>::split(replace(&mut self.root, None), k);
+        let (l, r) = RbNode::<F>::split(replace(&mut self.root, None), k);
         (Self::new(l), Self::new(r))
     }
     pub fn split3(mut self, l: usize, r: usize) -> (Self, Self, Self) {
         debug_assert!(l <= r && r <= self.len());
-        let (a, b, c) = RedBlackNode::<F>::split3(replace(&mut self.root, None), l, r);
+        let (a, b, c) = RbNode::<F>::split3(replace(&mut self.root, None), l, r);
         (Self::new(a), Self::new(b), Self::new(c))
     }
 
     pub fn insert(&mut self, k: usize, val: <F::M as Monoid>::S) {
         debug_assert!(k <= self.len());
-        self.root = RedBlackNode::<F>::insert(replace(&mut self.root, None), k, val);
+        self.root = RbNode::<F>::insert(replace(&mut self.root, None), k, val);
     }
     pub fn remove(&mut self, k: usize) -> <F::M as Monoid>::S {
         debug_assert!(k < self.len());
-        let (root, val) = RedBlackNode::<F>::remove(replace(&mut self.root, None), k);
+        let (root, val) = RbNode::<F>::remove(replace(&mut self.root, None), k);
         self.root = root;
         val
     }
@@ -445,7 +445,7 @@ impl<F: MapMonoid> RedBlackTree<F> {
             return vec![];
         }
         let mut v = vec![];
-        self.root = Some(RedBlackNode::<F>::collect(
+        self.root = Some(RbNode::<F>::collect(
             replace(&mut self.root, None).unwrap(),
             &mut v,
         ));
@@ -468,16 +468,16 @@ impl<F: MapMonoid> RedBlackTree<F> {
         if r == 0 {
             return r;
         }
-        let (mut a, b) = RedBlackNode::<F>::split(replace(&mut self.root, None), r);
+        let (mut a, b) = RbNode::<F>::split(replace(&mut self.root, None), r);
 
         let mut k = r;
-        a = Some(RedBlackNode::<F>::min_left(
+        a = Some(RbNode::<F>::min_left(
             a.unwrap(),
             g,
             &mut k,
             <F::M as Monoid>::identity(),
         ));
-        self.root = RedBlackNode::<F>::merge(a, b);
+        self.root = RbNode::<F>::merge(a, b);
         k
     }
 
@@ -497,16 +497,16 @@ impl<F: MapMonoid> RedBlackTree<F> {
         if l == self.len() {
             return l;
         }
-        let (a, mut b) = RedBlackNode::<F>::split(replace(&mut self.root, None), l);
+        let (a, mut b) = RbNode::<F>::split(replace(&mut self.root, None), l);
 
         let mut k = l;
-        b = Some(RedBlackNode::<F>::max_right(
+        b = Some(RbNode::<F>::max_right(
             b.unwrap(),
             g,
             &mut k,
             <F::M as Monoid>::identity(),
         ));
-        self.root = RedBlackNode::<F>::merge(a, b);
+        self.root = RbNode::<F>::merge(a, b);
         k
     }
 
@@ -516,11 +516,11 @@ impl<F: MapMonoid> RedBlackTree<F> {
             return <F::M as Monoid>::identity();
         }
 
-        let (a, b, c) = RedBlackNode::<F>::split3(replace(&mut self.root, None), l, r);
+        let (a, b, c) = RbNode::<F>::split3(replace(&mut self.root, None), l, r);
 
         let val = b.as_ref().unwrap().val();
 
-        self.root = RedBlackNode::<F>::merge3(a, b, c);
+        self.root = RbNode::<F>::merge3(a, b, c);
         val
     }
 
@@ -529,11 +529,11 @@ impl<F: MapMonoid> RedBlackTree<F> {
         if l == r {
             return;
         }
-        let (a, mut b, c) = RedBlackNode::<F>::split3(replace(&mut self.root, None), l, r);
+        let (a, mut b, c) = RbNode::<F>::split3(replace(&mut self.root, None), l, r);
 
-        b = Some(RedBlackNode::<F>::apply(b.unwrap(), f));
+        b = Some(RbNode::<F>::apply(b.unwrap(), f));
 
-        self.root = RedBlackNode::<F>::merge3(a, b, c);
+        self.root = RbNode::<F>::merge3(a, b, c);
     }
 
     pub fn reverse_range(&mut self, l: usize, r: usize) {
@@ -541,20 +541,20 @@ impl<F: MapMonoid> RedBlackTree<F> {
         if l == r {
             return;
         }
-        let (a, mut b, c) = RedBlackNode::<F>::split3(replace(&mut self.root, None), l, r);
+        let (a, mut b, c) = RbNode::<F>::split3(replace(&mut self.root, None), l, r);
 
-        b = Some(RedBlackNode::<F>::reverse(b.unwrap()));
+        b = Some(RbNode::<F>::reverse(b.unwrap()));
 
-        self.root = RedBlackNode::<F>::merge3(a, b, c);
+        self.root = RbNode::<F>::merge3(a, b, c);
     }
 }
-impl<F: MapMonoid> Clone for RedBlackTree<F> {
+impl<F: MapMonoid> Clone for RbTree<F> {
     fn clone(&self) -> Self {
         Self::new(self.root.clone())
     }
 }
-impl<F: MapMonoid> From<Vec<<F::M as Monoid>::S>> for RedBlackTree<F> {
+impl<F: MapMonoid> From<Vec<<F::M as Monoid>::S>> for RbTree<F> {
     fn from(v: Vec<<F::M as Monoid>::S>) -> Self {
-        Self::new(RedBlackNode::<F>::build(&v, 0, v.len()))
+        Self::new(RbNode::<F>::build(&v, 0, v.len()))
     }
 }

@@ -53,19 +53,19 @@ pub struct Factorial<T> {
 
 impl<T> Factorial<T>
 where
-    T: Copy + From<usize> + Mul<Output = T> + Div<Output = T>,
+    T: Copy + From<u32> + Mul<Output = T> + Div<Output = T>,
 {
     pub fn new(n: usize) -> Self {
         let (mut fact, mut finv) = (Vec::with_capacity(n + 1), Vec::with_capacity(n + 1));
 
         fact.push(T::from(1));
         for i in 0..n {
-            fact.push(fact[i] * T::from(i + 1));
+            fact.push(fact[i] * T::from((i + 1) as u32));
         }
 
         finv.push(T::from(1) / fact[n]);
         for i in 0..n {
-            finv.push(finv[i] * T::from(n - i));
+            finv.push(finv[i] * T::from((n - i) as u32));
         }
         finv.reverse();
 

@@ -139,10 +139,30 @@ where T: Copy + Clone + From<u32> + Add<Output=T> + Sub<Output=T> + Mul<Output=T
         debug_assert!(self.len() > 0);
         let mut inv = vec![T::from(1) / self[0]];
         for m in (0..).map(|i| 1<<i).take_while(|&m| m < d) {
-            let h = Self::convolution(&self[0..min(2*m, self.len())], &inv);
-            let h = Self::convolution(&h[m..min(2*m, h.len())], &inv);
-            for &a in &h[0..min(d - inv.len(), m)] {
-                inv.push(-a);
+            let mut f = self[0..min(2*m, self.len())].to_owned();
+            let mut g = inv.clone();
+            f.resize(2*m, T::from(0));
+            g.resize(2*m, T::from(0));
+            Self::butterfly(&mut f);
+            Self::butterfly(&mut g);
+            for (a, &b) in f.iter_mut().zip(&g) {
+                *a *= b;
+            }
+            Self::butterfly_inv(&mut f);
+
+            f.drain(0..m);
+            f.resize(2*m, T::from(0));
+            Self::butterfly(&mut f);
+            for (a, &b) in f.iter_mut().zip(&g) {
+                *a *= b;
+            }
+            Self::butterfly_inv(&mut f);
+
+            let iz = T::from(1) / T::from(2*m as u32);
+            let iz = -iz * iz;
+
+            for &a in &f[0..min(d - inv.len(), m)] {
+                inv.push(a * iz);
             }
         }
         debug_assert_eq!(inv.len(), d);

@@ -21,7 +21,7 @@ fn primitive_root(m: u32) -> u32 {
     }
 }
 
-pub trait Modulus: 'static + Sized {
+pub trait Modulus {
     const VALUE: u32;
 }
 

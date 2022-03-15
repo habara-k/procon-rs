@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::fmt::Debug;
 use std::ops::{Deref,DerefMut,DivAssign,MulAssign,Add,Sub,Mul,Div,Neg};
 use std::iter::successors;
 use std::marker::PhantomData;
@@ -72,21 +73,30 @@ fn ceil_log2(n: u32) -> u32 {
 }
 
 impl<M: Modulus, T> Fps<M, T>
-where T: Copy + Clone + From<u32> + Add<Output=T> + Sub<Output=T> + Mul<Output=T> + Div<Output=T> + MulAssign + Neg<Output=T>
+where T: Copy + Clone + From<u32> + Add<Output=T> + Sub<Output=T> + Mul<Output=T> + Div<Output=T> + MulAssign + Neg<Output=T> + Debug
 {
     pub fn butterfly(a: &mut [T]) {
         let n = a.len();
         debug_assert!(n.is_power_of_two());
         let h = ceil_log2(n as u32) as usize;
+
         let root = pow(T::from(primitive_root(M::VALUE)), (M::VALUE - 1) >> h);
-        let roots = successors(Some(root), |&x| Some(x * x)).take(h).collect::<Vec<_>>();
-        for (block, r) in (0..h).rev().map(|i| (1<<i, roots[h-1-i])) {
-            let p = successors(Some(T::from(1)), |&x| Some(x * r)).take(block).collect::<Vec<_>>();
-            for l in (0..n).step_by(block << 1) {
-                for i in 0..block {
-                    let (x, y) = (a[i+l], a[i+l+block]);
-                    a[i+l] = x + y;
-                    a[i+l+block] = (x - y) * p[i];
+        let mut es = successors(Some(root), |&x| Some(-x * x)).take(h-1).collect::<Vec<_>>();
+        es.reverse();
+
+        for c in 0..h {
+            let w = 1<<h-1-c;
+            let mut p = T::from(1);
+            for i in 0..1<<c {
+                let s = i * 2 * w;
+                for j in s..s+w {
+                    let x = a[j];
+                    let y = a[j + w] * p;
+                    a[j] = x + y;
+                    a[j + w] = x - y;
+                }
+                if i+1 != 1<<c {
+                    p *= es[(!i).trailing_zeros() as usize];
                 }
             }
         }
@@ -95,16 +105,25 @@ where T: Copy + Clone + From<u32> + Add<Output=T> + Sub<Output=T> + Mul<Output=T
         let n = a.len();
         debug_assert!(n.is_power_of_two());
         let h = ceil_log2(n as u32) as usize;
+
         let root = pow(T::from(primitive_root(M::VALUE)), (M::VALUE - 1) >> h);
-        let root = pow(root, M::VALUE - 2);
-        let roots = successors(Some(root), |&x| Some(x * x)).take(h).collect::<Vec<_>>();
-        for (block, r) in (0..h).map(|i| (1<<i, roots[h-1-i])) {
-            let p = successors(Some(T::from(1)), |&x| Some(x * r)).take(block).collect::<Vec<_>>();
-            for l in (0..n).step_by(block << 1) {
-                for i in 0..block {
-                    let (x, y) = (a[i+l], a[i+l+block] * p[i]);
-                    a[i+l] = x + y;
-                    a[i+l+block] = x - y;
+        let root = pow(root, M::VALUE-2);
+        let mut es = successors(Some(root), |&x| Some(-x * x)).take(h-1).collect::<Vec<_>>();
+        es.reverse();
+
+        for c in (0..h).rev() {
+            let w = 1<<h-1-c;
+            let mut p = T::from(1);
+            for i in 0..1<<c {
+                let s = i * 2 * w;
+                for j in s..s+w {
+                    let x = a[j];
+                    let y = a[j + w];
+                    a[j] = x + y;
+                    a[j + w] = (x - y) * p;
+                }
+                if i+1 != 1<<c {
+                    p *= es[(!i).trailing_zeros() as usize];
                 }
             }
         }
@@ -133,6 +152,7 @@ where T: Copy + Clone + From<u32> + Add<Output=T> + Sub<Output=T> + Mul<Output=T
         }
         a.into()
     }
+
 
     pub fn inv(&self, d: usize) -> Self {
         debug_assert!(d > 0);

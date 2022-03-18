@@ -110,24 +110,36 @@ impl<M: Modulus> Fps<M> {
         let h = ceil_log2(n as u32) as usize;
 
         let root = M::pow(M::PRIMITIVE_ROOT, (M::VALUE - 1) >> h);
-        let mut es = successors(Some(root), |&x| Some(M::neg(M::mul(x, x))))
+        let mut e = successors(Some(root), |&x| Some(M::neg(M::mul(x, x))))
             .take(h - 1)
             .collect::<Vec<_>>();
-        es.reverse();
+        e.reverse();
 
-        for c in 0..h {
-            let w = 1 << h - 1 - c;
-            let mut p = 1;
-            for i in 0..1 << c {
-                let s = i * 2 * w;
-                for j in s..s + w {
+        for len in 0..h {
+            let p = 1 << h - 1 - len;
+
+            for j in 0..p {
+                let x = a[j];
+                let y = a[j + p];
+                a[j] = M::add(x, y);
+                a[j + p] = M::sub(x, y);
+            }
+
+            if len == 0 {
+                continue;
+            }
+
+            let mut rot = e[0];
+            for s in 1..1 << len {
+                let offset = s << h - len;
+                for j in offset..offset + p {
                     let x = a[j];
-                    let y = M::mul(a[j + w], p);
+                    let y = M::mul(a[j + p], rot);
                     a[j] = M::add(x, y);
-                    a[j + w] = M::sub(x, y);
+                    a[j + p] = M::sub(x, y);
                 }
-                if i + 1 != 1 << c {
-                    p = M::mul(p, es[(!i).trailing_zeros() as usize]);
+                if s + 1 != 1 << len {
+                    rot = M::mul(rot, e[(!s).trailing_zeros() as usize]);
                 }
             }
         }
@@ -138,24 +150,37 @@ impl<M: Modulus> Fps<M> {
         let h = ceil_log2(n as u32) as usize;
 
         let root = M::pow(M::PRIMITIVE_ROOT, (M::VALUE - 1) >> h);
-        let mut es = successors(Some(M::inv(root)), |&x| Some(M::neg(M::mul(x, x))))
+
+        let mut ie = successors(Some(M::inv(root)), |&x| Some(M::neg(M::mul(x, x))))
             .take(h - 1)
             .collect::<Vec<_>>();
-        es.reverse();
+        ie.reverse();
 
-        for c in (0..h).rev() {
-            let w = 1 << h - 1 - c;
-            let mut p = 1;
-            for i in 0..1 << c {
-                let s = i * 2 * w;
-                for j in s..s + w {
+        for len in (0..h).rev() {
+            let p = 1 << h - 1 - len;
+
+            for j in 0..p {
+                let x = a[j];
+                let y = a[j + p];
+                a[j] = M::add(x, y);
+                a[j + p] = M::sub(x, y);
+            }
+
+            if len == 0 {
+                continue;
+            }
+
+            let mut rot = ie[0];
+            for s in 1..1 << len {
+                let offset = s << h - len;
+                for j in offset..offset + p {
                     let x = a[j];
-                    let y = a[j + w];
+                    let y = a[j + p];
                     a[j] = M::add(x, y);
-                    a[j + w] = M::mul(M::sub(x, y), p);
+                    a[j + p] = M::mul(M::sub(x, y), rot);
                 }
-                if i + 1 != 1 << c {
-                    p = M::mul(p, es[(!i).trailing_zeros() as usize]);
+                if s + 1 != 1 << len {
+                    rot = M::mul(rot, ie[(!s).trailing_zeros() as usize]);
                 }
             }
         }
@@ -209,7 +234,7 @@ impl<M: Modulus> Fps<M> {
             }
             Self::butterfly_inv(&mut f);
 
-            let iz = M::inv(M::mul(2, m as u32));
+            let iz = M::inv(2*m as u32);
             let iz = M::neg(M::mul(iz, iz));
 
             for &a in &f[0..min(d - inv.len(), m)] {

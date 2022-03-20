@@ -1,6 +1,6 @@
 use std::cmp::min;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, DivAssign, MulAssign, SubAssign};
+use std::ops::{Deref, DerefMut, DivAssign, MulAssign};
 
 pub trait Modulus {
     const VALUE: u32;
@@ -13,18 +13,13 @@ pub trait Modulus {
         debug_assert!(b < Self::VALUE);
         ((a as u64 * b as u64) % Self::VALUE as u64) as u32
     }
-    fn add_assign(a: &mut u32, b: u32) {
-        debug_assert!(*a < Self::VALUE);
-        debug_assert!(b < Self::VALUE);
-        *a += b;
-        if *a >= Self::VALUE {
-            *a -= Self::VALUE;
-        }
-    }
     fn add(mut a: u32, b: u32) -> u32 {
         debug_assert!(a < Self::VALUE);
         debug_assert!(b < Self::VALUE);
-        Self::add_assign(&mut a, b);
+        a += b;
+        if a >= Self::VALUE {
+            a -= Self::VALUE;
+        }
         a
     }
     fn neg(a: u32) -> u32 {
@@ -35,18 +30,13 @@ pub trait Modulus {
             Self::VALUE - a
         }
     }
-    fn sub_assign(a: &mut u32, b: u32) {
-        debug_assert!(*a < Self::VALUE);
-        debug_assert!(b < Self::VALUE);
-        *a += Self::VALUE - b;
-        if *a >= Self::VALUE {
-            *a -= Self::VALUE;
-        }
-    }
     fn sub(mut a: u32, b: u32) -> u32 {
         debug_assert!(a < Self::VALUE);
         debug_assert!(b < Self::VALUE);
-        Self::sub_assign(&mut a, b);
+        a += Self::VALUE - b;
+        if a >= Self::VALUE {
+            a -= Self::VALUE;
+        }
         a
     }
     fn pow(mut a: u32, mut n: u32) -> u32 {
@@ -67,7 +57,7 @@ pub trait Modulus {
     }
     fn div2(a: u32) -> u32 {
         debug_assert!(a < Self::VALUE);
-        (a + if (a & 1) == 0 { 0 } else { Self::VALUE }) >> 1
+        (a + (a & 1) * Self::VALUE) >> 1
     }
 }
 
@@ -140,15 +130,6 @@ impl<M: Modulus> DivAssign<u32> for Fps<M> {
     fn div_assign(&mut self, mut rhs: u32) {
         rhs = M::inv(rhs);
         self.iter_mut().for_each(|e| *e = M::mul(*e, rhs));
-    }
-}
-impl<M: Modulus> SubAssign<Self> for Fps<M> {
-    fn sub_assign(&mut self, rhs: Self) {
-        let n = std::cmp::max(self.len(), rhs.len());
-        self.resize(n, 0);
-        for (e, &x) in self.iter_mut().zip(rhs.iter()) {
-            *e = M::sub(*e, x);
-        }
     }
 }
 
@@ -269,8 +250,11 @@ impl<M: Modulus> Fps<M> {
             }
             Self::butterfly_inv(&mut f);
 
-            f.drain(0..m);
-            f.resize(2 * m, 0);
+            for i in 0..m {
+                f[i] = f[i+m];
+                f[i+m] = 0;
+            }
+
             Self::butterfly(&mut f);
             for (a, &b) in f.iter_mut().zip(&g) {
                 *a = M::mul(*a, b);

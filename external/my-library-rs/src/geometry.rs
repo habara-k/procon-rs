@@ -3,8 +3,8 @@ use std::ops::{Mul, Sub};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Point<T: Copy> {
-    x: T,
-    y: T,
+    pub x: T,
+    pub y: T,
 }
 impl<T: Copy> Point<T> {
     pub fn new(x: T, y: T) -> Self {

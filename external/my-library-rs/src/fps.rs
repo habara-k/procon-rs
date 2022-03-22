@@ -98,7 +98,7 @@ pub type Fps998244353 = Fps<Mod998244353>;
 impl<M: Modulus> From<Vec<u32>> for Fps<M> {
     fn from(v: Vec<u32>) -> Self {
         Self(
-            v.iter().map(|&e| e % M::VALUE).collect::<Vec<_>>(),
+            v,
             PhantomData::<M>,
         )
     }
@@ -261,7 +261,7 @@ impl<M: Modulus> Fps<M> {
             }
             Self::butterfly_inv(&mut f);
 
-            let iz = M::inv(2 * m as u32);
+            let iz = M::inv(M::add(m as u32, m as u32));
             let iz = M::neg(M::mul(iz, iz));
 
             for &a in &f[0..min(d - inv.len(), m)] {
@@ -276,12 +276,15 @@ impl<M: Modulus> Fps<M> {
         let (mut p, mut q) = (Self::from(p.to_owned()), Self::from(q.to_owned()));
 
         let n = 1 << ceil_log2(p.len() + q.len() - 1);
-        p.resize(2 * n, 0);
-        q.resize(2 * n, 0);
+        p.resize(n, 0);
+        q.resize(n, 0);
         Self::butterfly(&mut p);
         Self::butterfly(&mut q);
 
-        loop {
+        while k >= n as u64 {
+            Self::butterfly_doubling(&mut p);
+            Self::butterfly_doubling(&mut q);
+
             if (k & 1) == 0 {
                 for s in 0..n {
                     p[s] = M::div2(M::add(
@@ -309,12 +312,6 @@ impl<M: Modulus> Fps<M> {
             q.truncate(n);
 
             k >>= 1;
-            if k < n as u64 {
-                break;
-            }
-
-            Self::butterfly_doubling(&mut p);
-            Self::butterfly_doubling(&mut q);
         }
 
         Self::butterfly_doubling(&mut p);

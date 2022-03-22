@@ -1,5 +1,5 @@
 use std::convert::From;
-use std::ops::{AddAssign, Div, Mul};
+use std::ops::{AddAssign, Div, Mul, SubAssign};
 
 /// 二項係数を計算する.
 /// NOTE: ACLibrary のModInt のような有限体が渡されることを想定している.
@@ -121,4 +121,44 @@ where
     bitwise_transform(a, |x: *mut T, y: *mut T| unsafe {
         *y += *x;
     });
+}
+
+/// ラグランジュ補間
+/// n次多項式 f(x) に対して f(0), ..., f(n), t を入力すると, f(t) を返す.
+pub fn lagrange_polynomial<
+    T: Clone
+        + Copy
+        + From<i64>
+        + From<u32>
+        + Mul<Output = T>
+        + Div<Output = T>
+        + SubAssign
+        + AddAssign,
+>(
+    f: &[T],
+    t: i64,
+) -> T {
+    let n = f.len() - 1;
+    if t <= n as i64 {
+        return f[t as usize];
+    }
+    let fact = Factorial::new(n);
+    let mut lp = vec![T::from(1u32); n + 1];
+    let mut rp = vec![T::from(1u32); n + 1];
+    for i in 0..n {
+        lp[i + 1] = lp[i] * T::from(t - i as i64);
+    }
+    for i in (1..=n).rev() {
+        rp[i - 1] = rp[i] * T::from(t - i as i64);
+    }
+    let mut ans = T::from(0u32);
+    for i in 0..=n {
+        let x = f[i] * fact.finv[i] * fact.finv[n - i] * lp[i] * rp[i];
+        if ((n - i) & 1) == 1 {
+            ans -= x;
+        } else {
+            ans += x;
+        }
+    }
+    ans
 }

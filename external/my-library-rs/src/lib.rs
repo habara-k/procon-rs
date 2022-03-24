@@ -11,11 +11,11 @@ pub mod rolling_hash;
 pub mod tree;
 
 pub use algebra::{MapMonoid, Monoid};
-pub use convolution::{butterfly, butterfly_doubling, butterfly_inv};
+pub use convolution::{butterfly, butterfly_doubling, butterfly_inv, convolution};
 pub use fps::{Fps, Fps998244353};
 pub use geometry::{area_x2, convex_hull, cross, Point};
 pub use graph::{dijkstra, Edge};
-pub use math::{lagrange_polynomial, subset_zeta_transform, Factorial};
+pub use math::{lagrange_polynomial, subset_zeta_transform, Combination};
 pub use modulo::{Mod998244353, Modulus};
 pub use rbtree::RbTree;
 pub use rolling_hash::RollingHash;

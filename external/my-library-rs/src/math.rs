@@ -26,8 +26,8 @@ use std::ops::{AddAssign, Div, Mul, SubAssign};
 /// struct ModInt {
 ///     val: u64,
 /// }
-/// impl From<usize> for ModInt {
-///     fn from(val: usize) -> Self {
+/// impl From<u32> for ModInt {
+///     fn from(val: u32) -> Self {
 ///         Self { val: val as u64 }
 ///     }
 /// }
@@ -43,15 +43,15 @@ use std::ops::{AddAssign, Div, Mul, SubAssign};
 ///         self * Self { val: pow(rhs.val, MOD-2) }
 ///     }
 /// }
-/// let fact = Factorial::<ModInt>::new(10);
-/// assert_eq!(fact.binom(10, 3).val, (10 * 9 * 8) / (3 * 2 * 1) as u64);
+/// let comb = Combination::<ModInt>::new(10);
+/// assert_eq!(comb.C(10, 3).val, (10 * 9 * 8) / (3 * 2 * 1) as u64);
 /// ```
-pub struct Factorial<T> {
+pub struct Combination<T> {
     pub fact: Vec<T>,
     pub finv: Vec<T>,
 }
 
-impl<T> Factorial<T>
+impl<T> Combination<T>
 where
     T: Copy + From<u32> + Mul<Output = T> + Div<Output = T>,
 {
@@ -72,11 +72,20 @@ where
         Self { fact, finv }
     }
 
-    pub fn binom(&self, n: usize, r: usize) -> T {
+    #[allow(non_snake_case)]
+    pub fn C(&self, n: usize, r: usize) -> T {
         if n < r {
             return T::from(0);
         }
         self.fact[n] * self.finv[r] * self.finv[n - r]
+    }
+
+    #[allow(non_snake_case)]
+    pub fn P(&self, n: usize, r: usize) -> T {
+        if n < r {
+            return T::from(0);
+        }
+        self.fact[n] * self.finv[n - r]
     }
 }
 
@@ -142,7 +151,7 @@ pub fn lagrange_polynomial<
     if t <= n as i64 {
         return f[t as usize];
     }
-    let fact = Factorial::new(n);
+    let fact = Combination::new(n);
     let mut lp = vec![T::from(1u32); n + 1];
     let mut rp = vec![T::from(1u32); n + 1];
     for i in 0..n {

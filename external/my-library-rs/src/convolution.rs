@@ -72,3 +72,32 @@ pub fn butterfly_doubling<M: Modulus>(a: &mut Vec<u32>) {
     butterfly::<M>(&mut b);
     a.extend(b);
 }
+
+/// ```
+/// use my_library_rs::*;
+/// let a = vec![1, 1, 1];
+/// let b = vec![1, 1, 1];
+/// assert_eq!(convolution::<Mod998244353>(&a, &b), vec![1,2,3,2,1]);
+/// ```
+pub fn convolution<M: Modulus>(a: &[u32], b: &[u32]) -> Vec<u32> {
+    if a.is_empty() || b.is_empty() {
+        return vec![];
+    }
+    let (n, m) = (a.len(), b.len());
+    let (mut a, mut b) = (a.to_owned(), b.to_owned());
+    let z = 1 << ceil_log2(n + m - 1);
+    a.resize(z, 0);
+    b.resize(z, 0);
+    butterfly::<M>(&mut a);
+    butterfly::<M>(&mut b);
+    for (e, &x) in a.iter_mut().zip(b.iter()) {
+        *e = M::mul(*e, x);
+    }
+    butterfly_inv::<M>(&mut a);
+    a.resize(n + m - 1, 0);
+    let iz = M::inv(z as u32);
+    for e in a.iter_mut() {
+        *e = M::mul(*e, iz);
+    }
+    a
+}

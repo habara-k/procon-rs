@@ -9,6 +9,7 @@ pub mod modulo;
 pub mod rbtree;
 pub mod rolling_hash;
 pub mod tree;
+pub mod wavelet;
 
 pub use algebra::{MapMonoid, Monoid};
 pub use convolution::{butterfly, butterfly_doubling, butterfly_inv, convolution};
@@ -20,3 +21,4 @@ pub use modulo::{Mod998244353, Modulus};
 pub use rbtree::RbTree;
 pub use rolling_hash::RollingHash;
 pub use tree::HLD;
+pub use wavelet::WaveletMatrix;

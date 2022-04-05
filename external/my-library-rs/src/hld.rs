@@ -73,4 +73,40 @@ impl HLD {
     pub fn dist(&self, u: usize, v: usize) -> usize {
         self.depth[u] + self.depth[v] - 2 * self.depth[self.lca(u, v)]
     }
+
+    /// u の部分木に対応する self.visit の区間 [l,r) を返す.
+    /// ただし edge=true のときは u を含まない.
+    pub fn segments_subtree(&self, u: usize, edge: bool) -> (usize,usize) {
+        (self.visit[u] + if edge { 1 } else { 0 }, self.leave[u])
+    }
+
+    /// u -> v パスに対応する self.visit の区間列を返す.
+    /// 返り値 `(up, down)` は以下を満たす.
+    ///
+    /// - `up`: u -> lca(u,v) パスに対応する self.visit をパスに沿って列挙した区間 [l,r) の列
+    /// - `down`: lca(u,v) -> v パスに対応する self.visit をパスに沿って列挙した区間 [l,r) の列
+    ///
+    /// ただし u -> lca(u,v) において self.visit を逆行することになるので,
+    /// 非可換なモノイドを載せるときは 逆向きに管理したデータ構造に [n-r,n-l) でアクセスすること.
+    ///
+    /// また, edge=true のときは lca(u,v) を含まない
+    pub fn segments_path(&self, mut u: usize, mut v: usize, edge: bool) -> (Vec<(usize,usize)>,Vec<(usize,usize)>) {
+        let mut up = vec![];
+        let mut down = vec![];
+        while self.head[u] != self.head[v] {
+            if self.visit[u] < self.visit[v] {
+                down.push((self.visit[self.head[v]], self.visit[v] + 1));
+                v = self.par[self.head[v]];
+            } else {
+                up.push((self.visit[self.head[u]], self.visit[u] + 1));
+                u = self.par[self.head[u]];
+            }
+        }
+        if self.visit[u] < self.visit[v] {
+            down.push((self.visit[u] + if edge { 1 } else { 0 }, self.visit[v] + 1));
+        } else {
+            up.push((self.visit[v] + if edge { 1 } else { 0 }, self.visit[u] + 1));
+        }
+        (up, down)
+    }
 }

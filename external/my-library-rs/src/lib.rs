@@ -8,7 +8,7 @@ pub mod math;
 pub mod modulo;
 pub mod rbtree;
 pub mod rolling_hash;
-pub mod tree;
+pub mod hld;
 pub mod wavelet;
 
 pub use algebra::{MapMonoid, Monoid};
@@ -20,5 +20,5 @@ pub use math::{lagrange_polynomial, subset_zeta_transform, Combination};
 pub use modulo::{Mod998244353, Modulus};
 pub use rbtree::RbTree;
 pub use rolling_hash::RollingHash;
-pub use tree::HLD;
+pub use hld::HLD;
 pub use wavelet::WaveletMatrix;

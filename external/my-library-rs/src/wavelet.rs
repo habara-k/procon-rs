@@ -42,7 +42,7 @@ impl BitVector {
         }
     }
     /// (k+1)個目の f が現れる index. O(log n)
-    pub fn select(&self, mut k: usize, f: bool) -> Option<usize> {
+    pub fn select(&self, k: usize, f: bool) -> Option<usize> {
         if self.rank(self.n, f) <= k {
             return None;
         }
@@ -59,7 +59,7 @@ impl BitVector {
         Some(l)
     }
     /// 区間[l,n) において (k+1)個目の f が現れる index. O(log n)
-    pub fn select_after(&self, mut k: usize, f: bool, l: usize) -> Option<usize> {
+    pub fn select_after(&self, k: usize, f: bool, l: usize) -> Option<usize> {
         self.select(k + self.rank(l, f), f)
     }
 }
@@ -154,7 +154,7 @@ impl WaveletMatrix {
         Some(k)
     }
     /// 区間[l,n) において (k+1)個目の x が現れる index. O(log σ log n)
-    pub fn select_after(&self, mut k: usize, x: u64, l: usize) -> Option<usize> {
+    pub fn select_after(&self, k: usize, x: u64, l: usize) -> Option<usize> {
         self.select(k + self.rank(l, x), x)
     }
 
